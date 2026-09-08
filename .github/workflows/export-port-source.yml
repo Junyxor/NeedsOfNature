@@ -1,0 +1,26 @@
+name: Export port source snapshot
+
+on:
+  push:
+    branches:
+      - port/1.21.1-neoforge
+    paths:
+      - .github/workflows/export-port-source.yml
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Package source snapshot
+        run: |
+          tar -czf port-source.tar.gz animationdirector needsofnature build.gradle gradle.properties settings.gradle
+      - name: Upload snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: port-source-snapshot
+          path: port-source.tar.gz
+          retention-days: 1
