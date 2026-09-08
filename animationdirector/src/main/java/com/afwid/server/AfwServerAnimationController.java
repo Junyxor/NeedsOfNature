@@ -80,10 +80,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
@@ -107,6 +103,7 @@ import net.minecraft.block.enums.BedPart;
 import net.minecraft.state.property.Property;
 import net.minecraft.block.enums.SlabType;
 import net.minecraft.util.Identifier;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.registry.tag.BlockTags;
@@ -143,7 +140,7 @@ public final class AfwServerAnimationController {
     private static final double PLAYER_NUDGE_STRENGTH = 0.08;
     private static final double PLAYER_NUDGE_EPSILON = 1.0E-6;
     private static final int RECENT_NO_RESTORE_TRANSITION_TICKS = 20;
-    private static final Identifier BEDS_BLOCK_TAG_ID = new Identifier((String)"minecraft", (String)"beds");
+    private static final Identifier BEDS_BLOCK_TAG_ID = Identifier.of((String)"minecraft", (String)"beds");
     private static final Map<RegistryKey<World>, Map<UUID, Long>> IN_WALL_GRACE_BY_WORLD = new HashMap<RegistryKey<World>, Map<UUID, Long>>();
     private static final Map<RegistryKey<World>, Map<UUID, RecentNoRestoreTransition>> RECENT_NO_RESTORE_TRANSITIONS_BY_WORLD = new HashMap<RegistryKey<World>, Map<UUID, RecentNoRestoreTransition>>();
     private static final String AFW_NOAI_TAG = "afw_noai";
@@ -175,43 +172,48 @@ public final class AfwServerAnimationController {
     }
 
     public static void init() {
-        if (initialized) {
+        initialized = true;
+    }
+
+    /** Called from AnimationFramework's NeoForge ServerStartedEvent handler. */
+    public static void onServerStarted(MinecraftServer server) {
+        if (server == null) {
             return;
         }
-        initialized = true;
-        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
-            if (AfwAnimationDefinitions.isEmpty()) {
-                AfwAnimationDefinitions.reloadFromServerResourceManager(server.getResourceManager(), "server started with empty definition cache");
-            }
-            AI_DISABLE_STATE_BY_WORLD.clear();
-            NOAI_CLEANUP_TICKS_BY_WORLD.clear();
-            STARTUP_NOAI_CLEANUP_UNTIL_TICK = server.getTicks() + 20;
-            STARTUP_START_BLOCK_UNTIL_TICK = server.getTicks() + 40;
-            PLAYER_LOCK_STATE_BY_WORLD.clear();
-            PLAYER_QUEUES_BY_WORLD.clear();
-            QUEUED_MOB_TO_PLAYER_BY_WORLD.clear();
-            DEFERRED_QUEUE_CONTEXT_BY_WORLD.clear();
-            ANIMATION_START_PROTECTION.clear();
-            RECENT_NO_RESTORE_TRANSITIONS_BY_WORLD.clear();
-        });
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> server.execute(() -> {
-            ServerPlayerEntity player = handler.player;
-            if (player == null) {
-                return;
-            }
-            ServerWorld patt0$temp = (ServerWorld)player.getWorld();
-            if (!(patt0$temp instanceof ServerWorld)) {
-                return;
-            }
-            ServerWorld world = patt0$temp;
-            AfwServerAnimationController.stopActiveInstancesForDisconnectingPlayer(world, player.getUuid());
-            AfwServerAnimationController.releasePlayerLocks(world, List.of(player.getUuid()));
-            AfwServerAnimationController.clearPlayerQueue(world, player);
-            AfwServerAnimationController.clearDeferredQueueOriginal(world, player.getUuid());
-            ANIMATION_START_PROTECTION.remove(player.getUuid());
-            AfwServerAnimationController.removePlayerFromInstanceSubscribers(player.getUuid());
-        }));
-        ServerTickEvents.END_WORLD_TICK.register(AfwServerAnimationController::tickWorld);
+        if (AfwAnimationDefinitions.isEmpty()) {
+            AfwAnimationDefinitions.reloadFromServerResourceManager(server.getResourceManager(),
+                    "server started with empty definition cache");
+        }
+        AI_DISABLE_STATE_BY_WORLD.clear();
+        NOAI_CLEANUP_TICKS_BY_WORLD.clear();
+        STARTUP_NOAI_CLEANUP_UNTIL_TICK = server.getTicks() + 20;
+        STARTUP_START_BLOCK_UNTIL_TICK = server.getTicks() + 40;
+        PLAYER_LOCK_STATE_BY_WORLD.clear();
+        PLAYER_QUEUES_BY_WORLD.clear();
+        QUEUED_MOB_TO_PLAYER_BY_WORLD.clear();
+        DEFERRED_QUEUE_CONTEXT_BY_WORLD.clear();
+        ANIMATION_START_PROTECTION.clear();
+        RECENT_NO_RESTORE_TRANSITIONS_BY_WORLD.clear();
+    }
+
+    /** Called from AnimationFramework's NeoForge PlayerLoggedOutEvent handler. */
+    public static void onPlayerDisconnected(ServerPlayerEntity player) {
+        if (player == null || !(player.getWorld() instanceof ServerWorld world)) {
+            return;
+        }
+        stopActiveInstancesForDisconnectingPlayer(world, player.getUuid());
+        releasePlayerLocks(world, List.of(player.getUuid()));
+        clearPlayerQueue(world, player);
+        clearDeferredQueueOriginal(world, player.getUuid());
+        ANIMATION_START_PROTECTION.remove(player.getUuid());
+        removePlayerFromInstanceSubscribers(player.getUuid());
+    }
+
+    /** Called from AnimationFramework's NeoForge LevelTickEvent.Post handler. */
+    public static void onWorldTick(ServerWorld world) {
+        if (world != null) {
+            tickWorld(world);
+        }
     }
 
     @Nullable
@@ -1144,7 +1146,7 @@ public final class AfwServerAnimationController {
         for (UUID uuid : actorUuids) {
             Entity e = world.getEntity(uuid);
             if (e != null) {
-                targets.addAll(PlayerLookup.tracking((Entity)e));
+                targets.addAll(world.getPlayers());
                 if (!(e instanceof ServerPlayerEntity)) continue;
                 ServerPlayerEntity sp = (ServerPlayerEntity)e;
                 targets.add(sp);
@@ -1153,7 +1155,7 @@ public final class AfwServerAnimationController {
             ServerPlayerEntity p = Objects.requireNonNull(world.getServer()).getPlayerManager().getPlayer(uuid);
             if (p == null || p.getEntityWorld() != world) continue;
             targets.add(p);
-            targets.addAll(PlayerLookup.tracking((Entity)p));
+            targets.addAll(world.getPlayers());
         }
         return targets;
     }
@@ -2434,7 +2436,7 @@ public final class AfwServerAnimationController {
         if (state.originalAiDisabled) {
             mob.addCommandTag(AFW_NOAI_ORIG_TAG);
         } else {
-            mob.removeScoreboardTag(AFW_NOAI_ORIG_TAG);
+            mob.removeCommandTag(AFW_NOAI_ORIG_TAG);
         }
     }
 
@@ -2856,8 +2858,8 @@ public final class AfwServerAnimationController {
     }
 
     private static void clearNoAiTags(MobEntity mob) {
-        mob.removeScoreboardTag(AFW_NOAI_TAG);
-        mob.removeScoreboardTag(AFW_NOAI_ORIG_TAG);
+        mob.removeCommandTag(AFW_NOAI_TAG);
+        mob.removeCommandTag(AFW_NOAI_ORIG_TAG);
     }
 
     private static void restoreAiState(MobEntity mob, AiDisableState state) {

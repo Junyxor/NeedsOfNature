@@ -14,6 +14,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
+import net.minecraft.client.util.SkinTextures;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.render.entity.EntityRenderDispatcher;
@@ -33,8 +34,8 @@ import net.minecraft.util.Identifier;
 public final class AfwGeckoReplacedRender {
     private static final Map<Identifier, AfwReplacedEntityRenderer> RENDERERS = new ConcurrentHashMap<>();
     private static final Identifier UNKNOWN_RENDERER_KEY =
-            new Identifier("animationframework", "unknown_renderer");
-    private static final Identifier PLAYER_TYPE_ID = new Identifier("minecraft", "player");
+            Identifier.of("animationframework", "unknown_renderer");
+    private static final Identifier PLAYER_TYPE_ID = Identifier.of("minecraft", "player");
     private static final float ACTIVE_MODEL_SCALE = 0.96f;
 
     private AfwGeckoReplacedRender() {
@@ -154,8 +155,8 @@ public final class AfwGeckoReplacedRender {
         Map<String, AfwGeckoModelEvents.BoneItemProp> renderBoneItems = Map.of();
 
         if (PLAYER_TYPE_ID.equals(entityTypeId) && entity instanceof AbstractClientPlayerEntity player
-                && "slim".equals(player.getModel())) {
-            Identifier slim = new Identifier("animationframework", "entity/player_slim");
+                && player.getSkinTextures().model() == SkinTextures.Model.SLIM) {
+            Identifier slim = Identifier.of("animationframework", "entity/player_slim");
             if (hasModelOrGenderedModel(slim)) {
                 model = slim;
             }
@@ -241,7 +242,7 @@ public final class AfwGeckoReplacedRender {
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static Identifier resolveVanillaTexture(LivingEntity entity) {
         if (entity instanceof AbstractClientPlayerEntity player) {
-            return player.getSkinTexture();
+            return player.getSkinTextures().texture();
         }
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null) {
@@ -263,8 +264,8 @@ public final class AfwGeckoReplacedRender {
         if (AfwGeckoResourceResolver.hasGeoModel(modelId)) {
             return true;
         }
-        Identifier male = new Identifier(modelId.getNamespace(), modelId.getPath() + ".m");
-        Identifier female = new Identifier(modelId.getNamespace(), modelId.getPath() + ".f");
+        Identifier male = Identifier.of(modelId.getNamespace(), modelId.getPath() + ".m");
+        Identifier female = Identifier.of(modelId.getNamespace(), modelId.getPath() + ".f");
         return AfwGeckoResourceResolver.hasGeoModel(male)
                 || AfwGeckoResourceResolver.hasGeoModel(female);
     }

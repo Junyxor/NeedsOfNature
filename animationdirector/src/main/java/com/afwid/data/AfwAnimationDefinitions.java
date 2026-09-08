@@ -54,13 +54,10 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
-import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.Identifier;
 import net.minecraft.resource.ResourcePack;
-import net.minecraft.resource.ResourceType;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceReloader;
@@ -72,8 +69,8 @@ import org.jetbrains.annotations.Nullable;
 
 public final class AfwAnimationDefinitions {
     private static final String NORMAL_MATCH_TAG = "normal_match";
-    private static final Identifier PLAYER_ID = new Identifier((String)"minecraft", (String)"player");
-    private static final Identifier PLAYER_SLIM_ID = new Identifier((String)"minecraft", (String)"player_slim");
+    private static final Identifier PLAYER_ID = Identifier.of((String)"minecraft", (String)"player");
+    private static final Identifier PLAYER_SLIM_ID = Identifier.of((String)"minecraft", (String)"player_slim");
     private static final String INVALID_ENTITY_VARIANT = "\u0000";
     private static final Set<String> KNOWN_DEFINITION_KEYS = Set.of("actors", "animation_tags", "content_tags", "required_union_tags", "weight", "speed", "block_requirements", "water", "position_anchor_actor", "stages", "manual_peak", "liquid_gain_multiplier", "stage_seconds", "escapable");
     private static final Set<String> KNOWN_ACTOR_KEYS = Set.of("label", "entity_types", "entity_variant", "actor_tags", "actor_tags_any", "age", "activity", "prop_left", "prop_right", "injector", "receiver");
@@ -90,8 +87,8 @@ public final class AfwAnimationDefinitions {
     private AfwAnimationDefinitions() {
     }
 
+    /** Registration is performed by the NeoForge event bus. */
     public static void registerReloadListener() {
-        ResourceManagerHelper.get(ResourceType.SERVER_DATA).registerReloadListener(new Reloader());
     }
 
     public static MatchResult match(List<Entity> selectedActorsSortedById) {
@@ -508,7 +505,7 @@ public final class AfwAnimationDefinitions {
         ArrayList<Definition> loaded = new ArrayList<Definition>();
         for (Map.Entry<Identifier, Resource> entry : resources.entrySet()) {
             Identifier fileId = entry.getKey();
-            String resourcePackId = entry.getValue().getResourcePackName();
+            String resourcePackId = entry.getValue().getPackId();
             AnimationPackInfo packInfo = packInfoByResourcePackId.getOrDefault(resourcePackId, AfwAnimationDefinitions.fallbackPackInfo(resourcePackId));
             try (InputStreamReader reader = new InputStreamReader(entry.getValue().getInputStream(), StandardCharsets.UTF_8);){
                 JsonObject obj = JsonParser.parseReader((Reader)reader).getAsJsonObject();
@@ -584,7 +581,7 @@ public final class AfwAnimationDefinitions {
                 if (pack == null) {
                     return;
                 }
-                String resourcePackId = pack.getName();
+                String resourcePackId = pack.getId();
                 if (resourcePackId == null || resourcePackId.isBlank()) {
                     return;
                 }
@@ -1286,12 +1283,12 @@ public final class AfwAnimationDefinitions {
             for (Map.Entry entry : stageSpecs.entrySet()) {
                 int stageNumber = (Integer)entry.getKey();
                 StageSpec spec = (StageSpec)entry.getValue();
-                Identifier stageId = new Identifier((String)defId.getNamespace(), (String)(defId.getPath() + ".p" + stageNumber));
+                Identifier stageId = Identifier.of((String)defId.getNamespace(), (String)(defId.getPath() + ".p" + stageNumber));
                 List<AnimationStageInfo.ActorPropEntry> stageProps = stagePropsByNumber.getOrDefault(stageNumber, List.of());
                 Identifier playbackId = stageId;
                 if (spec.useStage != null && spec.useStage != stageNumber) {
                     if (stageSpecs.containsKey(spec.useStage)) {
-                        playbackId = new Identifier((String)defId.getNamespace(), (String)(defId.getPath() + ".p" + spec.useStage));
+                        playbackId = Identifier.of((String)defId.getNamespace(), (String)(defId.getPath() + ".p" + spec.useStage));
                     } else {
                         AnimationFramework.logSetupWarning("[AFW] use_stage '{}' in {} stage p{} points to missing stage; falling back to p{}.", spec.useStage, fileId, stageNumber, stageNumber);
                     }
@@ -1590,16 +1587,12 @@ public final class AfwAnimationDefinitions {
         if (path.endsWith(".json")) {
             path = path.substring(0, path.length() - 5);
         }
-        return new Identifier((String)fileId.getNamespace(), (String)path);
+        return Identifier.of((String)fileId.getNamespace(), (String)path);
     }
 
     public static final class Reloader
-    implements SynchronousResourceReloader, IdentifiableResourceReloadListener {
-        static final Identifier RELOADER_ID = new Identifier((String)"animationframework", (String)"afw_animdefs");
-
-        public Identifier getFabricId() {
-            return RELOADER_ID;
-        }
+    implements SynchronousResourceReloader {
+        static final Identifier RELOADER_ID = Identifier.of((String)"animationframework", (String)"afw_animdefs");
 
         public void reload(ResourceManager manager) {
             AfwAnimationDefinitions.reload(manager);

@@ -32,10 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.util.Identifier;
-import net.minecraft.resource.ResourceType;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceReloader;
@@ -43,13 +40,13 @@ import net.minecraft.resource.SynchronousResourceReloader;
 
 public final class AfwSoundEffects {
     private static volatile Map<Identifier, Map<String, SoundAnimation>> SOUND_BY_ANIMATION = Map.of();
-    private static final Identifier RELOADER_ID = new Identifier((String)"animationframework", (String)"afw_sound_effects");
+    private static final Identifier RELOADER_ID = Identifier.of((String)"animationframework", (String)"afw_sound_effects");
 
     private AfwSoundEffects() {
     }
 
+    /** Registration is performed by the NeoForge event bus. */
     public static void registerReloadListener() {
-        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new Reloader());
     }
 
     public static boolean hasAny() {
@@ -218,7 +215,7 @@ public final class AfwSoundEffects {
             return null;
         }
         String animPath = path.substring(prefix.length(), path.length() - suffix.length());
-        return new Identifier((String)fileId.getNamespace(), (String)animPath);
+        return Identifier.of((String)fileId.getNamespace(), (String)animPath);
     }
 
     private static void setupWarn(String template, Object ... args) {
@@ -232,10 +229,7 @@ public final class AfwSoundEffects {
     }
 
     public static final class Reloader
-    implements SynchronousResourceReloader, IdentifiableResourceReloadListener {
-        public Identifier getFabricId() {
-            return RELOADER_ID;
-        }
+    implements SynchronousResourceReloader {
 
         public void reload(ResourceManager manager) {
             AfwSoundEffects.reload(manager);

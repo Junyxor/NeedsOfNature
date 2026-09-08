@@ -42,13 +42,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.util.Formatting;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.resource.ResourceType;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceReloader;
@@ -56,7 +53,7 @@ import net.minecraft.resource.SynchronousResourceReloader;
 import org.jetbrains.annotations.Nullable;
 
 public final class AfwAnimationAssetDiagnostics {
-    private static final Identifier RELOADER_ID = new Identifier((String)"animationframework", (String)"afw_animation_asset_diagnostics");
+    private static final Identifier RELOADER_ID = Identifier.of((String)"animationframework", (String)"afw_animation_asset_diagnostics");
     private static final double LENGTH_WARNING_TOLERANCE_SECONDS = 0.05;
     private static volatile Map<Identifier, AnimationAssetLength> LENGTHS_BY_RESOURCE = Map.of();
     private static final Set<String> WARNED_MISMATCHES = new LinkedHashSet<String>();
@@ -66,8 +63,8 @@ public final class AfwAnimationAssetDiagnostics {
     private AfwAnimationAssetDiagnostics() {
     }
 
+    /** Registration is performed by the NeoForge event bus. */
     public static void registerReloadListener() {
-        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new Reloader());
     }
 
     public static void validateLoadedDefinitionsOnce() {
@@ -315,10 +312,7 @@ public final class AfwAnimationAssetDiagnostics {
     }
 
     public static final class Reloader
-    implements SynchronousResourceReloader, IdentifiableResourceReloadListener {
-        public Identifier getFabricId() {
-            return RELOADER_ID;
-        }
+    implements SynchronousResourceReloader {
 
         public void reload(ResourceManager manager) {
             AfwAnimationAssetDiagnostics.reload(manager);

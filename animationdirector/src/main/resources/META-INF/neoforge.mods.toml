@@ -34,6 +34,6 @@ side="BOTH"
 [[dependencies.animationframework]]
 modId="geckolib"
 type="required"
-versionRange="[4.8.4,)"
+versionRange="[4.9.2,)"
 ordering="AFTER"
 side="BOTH"

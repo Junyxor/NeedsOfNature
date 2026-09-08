@@ -12,15 +12,12 @@
 package com.afwid.api;
 
 import java.util.UUID;
-import net.fabricmc.fabric.api.event.Event;
-import net.fabricmc.fabric.api.event.EventFactory;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.Identifier;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class AfwSoundCueEvents {
-    public static final Event<@NotNull SoundResolver> RESOLVE = EventFactory.createArrayBacked(SoundResolver.class, callbacks -> context -> {
+    public static final AfwEvent<SoundResolver> RESOLVE = new AfwEvent<>(callbacks -> context -> {
         for (SoundResolver callback : callbacks) {
             SoundOverride override = callback.resolve(context);
             if (override == null) continue;

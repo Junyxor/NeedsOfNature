@@ -16,17 +16,14 @@ package com.afwid.api;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import net.fabricmc.fabric.api.event.Event;
-import net.fabricmc.fabric.api.event.EventFactory;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.Identifier;
 import net.minecraft.client.render.model.json.ModelTransformationMode;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class AfwGeckoModelEvents {
-    public static final Event<@NotNull ModelResolver> RESOLVE = EventFactory.createArrayBacked(ModelResolver.class, callbacks -> (entity, entityTypeId, currentModel, currentTexture) -> {
+    public static final AfwEvent<ModelResolver> RESOLVE = new AfwEvent<>(callbacks -> (entity, entityTypeId, currentModel, currentTexture) -> {
         for (ModelResolver callback : callbacks) {
             ModelOverride resolved = callback.resolve(entity, entityTypeId, currentModel, currentTexture);
             if (resolved == null) continue;
@@ -34,7 +31,7 @@ public final class AfwGeckoModelEvents {
         }
         return null;
     });
-    public static final Event<@NotNull RenderResolver> RESOLVE_RENDER = EventFactory.createArrayBacked(RenderResolver.class, callbacks -> (entity, entityTypeId, currentModel, currentTexture) -> {
+    public static final AfwEvent<RenderResolver> RESOLVE_RENDER = new AfwEvent<>(callbacks -> (entity, entityTypeId, currentModel, currentTexture) -> {
         for (RenderResolver callback : callbacks) {
             RenderOverride resolved = callback.resolve(entity, entityTypeId, currentModel, currentTexture);
             if (resolved == null) continue;

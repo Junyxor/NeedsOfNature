@@ -23,11 +23,11 @@ import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
-import net.fabricmc.loader.api.FabricLoader;
+import net.neoforged.fml.loading.FMLPaths;
 
 public final class AfwClientConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path CONFIG_PATH = FabricLoader.getInstance().getConfigDir().resolve("animationframework.json");
+    private static final Path CONFIG_PATH = FMLPaths.CONFIGDIR.get().resolve("animationframework.json");
     private static volatile AfwClientConfig INSTANCE = AfwClientConfig.loadFromDisk();
     private boolean forceVanillaEntityTextures = false;
     private AfwDebugChatMode debugChatMode = AfwDebugChatMode.SETUP_ERRORS;

@@ -26,6 +26,7 @@ public final class AfwEmissiveTextureGeoLayer extends GeoRenderLayer<AfwActorAni
         if (context == null) {
             return;
         }
+        int renderColor = getRenderer().getRenderColor(animatable, tickDelta, packedLight).argbInt();
         for (Identifier texture : context.emissiveTextures()) {
             if (texture == null) {
                 continue;
@@ -33,8 +34,7 @@ public final class AfwEmissiveTextureGeoLayer extends GeoRenderLayer<AfwActorAni
             RenderLayer layer = RenderLayer.getEntityCutoutNoCullZOffset(texture);
             getRenderer().reRender(bakedModel, matrices, vertices, animatable, layer,
                     vertices.getBuffer(layer), tickDelta,
-                    LightmapTextureManager.MAX_LIGHT_COORDINATE, packedOverlay,
-                    1.0f, 1.0f, 1.0f, 1.0f);
+                    LightmapTextureManager.MAX_LIGHT_COORDINATE, packedOverlay, renderColor);
         }
     }
 }

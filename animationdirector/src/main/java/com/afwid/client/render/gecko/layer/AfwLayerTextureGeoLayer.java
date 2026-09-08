@@ -25,14 +25,14 @@ public final class AfwLayerTextureGeoLayer extends GeoRenderLayer<AfwActorAnimat
         if (context == null) {
             return;
         }
+        int renderColor = getRenderer().getRenderColor(animatable, tickDelta, packedLight).argbInt();
         for (Identifier texture : context.layerTextures()) {
             if (texture == null) {
                 continue;
             }
             RenderLayer layer = RenderLayer.getEntityTranslucent(texture);
             getRenderer().reRender(bakedModel, matrices, vertices, animatable, layer,
-                    vertices.getBuffer(layer), tickDelta, packedLight, packedOverlay,
-                    1.0f, 1.0f, 1.0f, 1.0f);
+                    vertices.getBuffer(layer), tickDelta, packedLight, packedOverlay, renderColor);
         }
     }
 }

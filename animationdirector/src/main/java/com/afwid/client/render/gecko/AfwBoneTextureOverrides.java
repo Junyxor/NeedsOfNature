@@ -31,10 +31,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.util.Identifier;
-import net.minecraft.resource.ResourceType;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceReloader;
@@ -45,13 +42,13 @@ public final class AfwBoneTextureOverrides {
     private static volatile Map<Identifier, List<Identifier>> EMISSIVE_TEXTURES_BY_MODEL = Map.of();
     private static volatile Map<Identifier, Map<String, ModelLocator>> LOCATORS_BY_MODEL = Map.of();
     private static volatile Map<Identifier, RenderSettings> RENDER_SETTINGS_BY_MODEL = Map.of();
-    private static final Identifier RELOADER_ID = new Identifier((String)"animationframework", (String)"afw_bone_textures");
+    private static final Identifier RELOADER_ID = Identifier.of((String)"animationframework", (String)"afw_bone_textures");
 
     private AfwBoneTextureOverrides() {
     }
 
+    /** Registration is performed by the NeoForge event bus. */
     public static void registerReloadListener() {
-        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new Reloader());
     }
 
     public static Map<String, Identifier> getBoneTextures(Identifier modelId) {
@@ -279,7 +276,7 @@ public final class AfwBoneTextureOverrides {
             return null;
         }
         String modelPath = path.substring(prefix.length(), path.length() - suffix.length());
-        return new Identifier((String)fileId.getNamespace(), (String)modelPath);
+        return Identifier.of((String)fileId.getNamespace(), (String)modelPath);
     }
 
     private static Identifier logicalModelId(Identifier modelId) {
@@ -298,10 +295,7 @@ public final class AfwBoneTextureOverrides {
     }
 
     public static final class Reloader
-    implements SynchronousResourceReloader, IdentifiableResourceReloadListener {
-        public Identifier getFabricId() {
-            return RELOADER_ID;
-        }
+    implements SynchronousResourceReloader {
 
         public void reload(ResourceManager manager) {
             AfwBoneTextureOverrides.reload(manager);

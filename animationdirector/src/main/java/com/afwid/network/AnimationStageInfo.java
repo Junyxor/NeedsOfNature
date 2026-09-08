@@ -20,8 +20,6 @@ package com.afwid.network;
 
 import com.afwid.api.AfwGeckoModelEvents;
 import com.afwid.util.AfwStageTimeWarp;
-import com.mojang.datafixers.kinds.App;
-import com.mojang.datafixers.kinds.Applicative;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.util.ArrayList;
@@ -31,15 +29,61 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.ItemConvertible;
 import net.minecraft.util.Identifier;
 import net.minecraft.registry.Registries;
-import net.minecraft.item.ItemDisplayContext;
+import net.minecraft.client.render.model.json.ModelTransformationMode;
 import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.network.codec.PacketCodec;
 import org.jetbrains.annotations.Nullable;
 
 public record AnimationStageInfo(Identifier animationId, boolean loop, long lengthTicks, boolean allowJoin, double speed, Identifier playbackAnimationId, List<ActorPropEntry> actorProps, double cycleMidpointOffsetSeconds, double cycleTicks) {
-    public static final Codec<AnimationStageInfo> DATA_CODEC = RecordCodecBuilder.create(instance -> instance.group((App)Identifier.CODEC.fieldOf("id").forGetter(AnimationStageInfo::animationId), (App)Codec.BOOL.optionalFieldOf("loop", (Object)true).forGetter(AnimationStageInfo::loop), (App)Codec.DOUBLE.optionalFieldOf("cycle_seconds", (Object)0.0).forGetter(stage -> AnimationStageInfo.exactTicksToSeconds(stage.cycleTicks())), (App)Codec.BOOL.optionalFieldOf("allow_join", (Object)true).forGetter(AnimationStageInfo::allowJoin), (App)Codec.DOUBLE.optionalFieldOf("speed", (Object)1.0).forGetter(AnimationStageInfo::speed), (App)Codec.DOUBLE.optionalFieldOf("cycle_midpoint_offset_seconds", (Object)0.0).forGetter(AnimationStageInfo::cycleMidpointOffsetSeconds)).apply((Applicative)instance, (animationId, loop, cycleSeconds, allowJoin, speed, offset) -> new AnimationStageInfo((Identifier)animationId, (boolean)loop, AnimationStageInfo.secondsToTicks(cycleSeconds), (boolean)allowJoin, (double)speed, (Identifier)animationId, List.of(), (double)offset, AnimationStageInfo.secondsToExactTicks(cycleSeconds))));
-    public static final PacketCodec<RegistryByteBuf, AnimationStageInfo> CODEC = PacketCodec.tuple((PacketCodec)Identifier.PACKET_CODEC.cast(), AnimationStageInfo::animationId, (PacketCodec)PacketCodecs.BOOLEAN, AnimationStageInfo::loop, (PacketCodec)PacketCodecs.LONG, AnimationStageInfo::lengthTicks, (PacketCodec)PacketCodecs.BOOLEAN, AnimationStageInfo::allowJoin, (PacketCodec)PacketCodecs.DOUBLE, AnimationStageInfo::speed, (PacketCodec)Identifier.PACKET_CODEC.cast(), AnimationStageInfo::playbackAnimationId, (PacketCodec)ActorPropEntry.CODEC.collect(PacketCodecs.toList()).xmap(List::copyOf, list -> list).cast(), AnimationStageInfo::actorProps, (PacketCodec)PacketCodecs.DOUBLE, AnimationStageInfo::cycleMidpointOffsetSeconds, (PacketCodec)PacketCodecs.DOUBLE, AnimationStageInfo::cycleTicks, AnimationStageInfo::new);
+    public static final Codec<AnimationStageInfo> DATA_CODEC = RecordCodecBuilder.create(instance -> instance.group(
+            Identifier.CODEC.fieldOf("id").forGetter(AnimationStageInfo::animationId),
+            Codec.BOOL.optionalFieldOf("loop", true).forGetter(AnimationStageInfo::loop),
+            Codec.DOUBLE.optionalFieldOf("cycle_seconds", 0.0).forGetter(stage -> exactTicksToSeconds(stage.cycleTicks())),
+            Codec.BOOL.optionalFieldOf("allow_join", true).forGetter(AnimationStageInfo::allowJoin),
+            Codec.DOUBLE.optionalFieldOf("speed", 1.0).forGetter(AnimationStageInfo::speed),
+            Codec.DOUBLE.optionalFieldOf("cycle_midpoint_offset_seconds", 0.0).forGetter(AnimationStageInfo::cycleMidpointOffsetSeconds)
+    ).apply(instance, (animationId, loop, cycleSeconds, allowJoin, speed, offset) ->
+            new AnimationStageInfo(animationId, loop, secondsToTicks(cycleSeconds), allowJoin, speed,
+                    animationId, List.of(), offset, secondsToExactTicks(cycleSeconds))));
+
+    public static final PacketCodec<RegistryByteBuf, AnimationStageInfo> CODEC =
+            PacketCodec.of(AnimationStageInfo::encodePacket, AnimationStageInfo::decodePacket);
+
+    private static void encodePacket(AnimationStageInfo stage, RegistryByteBuf buf) {
+        buf.writeIdentifier(stage.animationId());
+        buf.writeBoolean(stage.loop());
+        buf.writeLong(stage.lengthTicks());
+        buf.writeBoolean(stage.allowJoin());
+        buf.writeDouble(stage.speed());
+        buf.writeIdentifier(stage.playbackAnimationId());
+        buf.writeVarInt(stage.actorProps().size());
+        for (ActorPropEntry entry : stage.actorProps()) {
+            ActorPropEntry.CODEC.encode(buf, entry);
+        }
+        buf.writeDouble(stage.cycleMidpointOffsetSeconds());
+        buf.writeDouble(stage.cycleTicks());
+    }
+
+    private static AnimationStageInfo decodePacket(RegistryByteBuf buf) {
+        Identifier animationId = buf.readIdentifier();
+        boolean loop = buf.readBoolean();
+        long lengthTicks = buf.readLong();
+        boolean allowJoin = buf.readBoolean();
+        double speed = buf.readDouble();
+        Identifier playbackAnimationId = buf.readIdentifier();
+        int propCount = buf.readVarInt();
+        if (propCount < 0 || propCount > 64) {
+            throw new IllegalArgumentException("Too many actor prop entries: " + propCount);
+        }
+        ArrayList<ActorPropEntry> props = new ArrayList<>(propCount);
+        for (int i = 0; i < propCount; i++) {
+            props.add(ActorPropEntry.CODEC.decode(buf));
+        }
+        double offset = buf.readDouble();
+        double cycleTicks = buf.readDouble();
+        return new AnimationStageInfo(animationId, loop, lengthTicks, allowJoin, speed,
+                playbackAnimationId, props, offset, cycleTicks);
+    }
 
     public AnimationStageInfo {
         if (animationId == null) {
@@ -141,8 +185,18 @@ public record AnimationStageInfo(Identifier animationId, boolean loop, long leng
     }
 
     public record ActorPropEntry(String actorKey, @Nullable Identifier propLeftItemId, @Nullable Identifier propRightItemId) {
-        private static final PacketCodec<RegistryByteBuf, String> NULLABLE_IDENTIFIER_STRING_CODEC = PacketCodecs.STRING.cast();
-        public static final PacketCodec<RegistryByteBuf, ActorPropEntry> CODEC = PacketCodec.tuple((PacketCodec)PacketCodecs.STRING, ActorPropEntry::actorKey, NULLABLE_IDENTIFIER_STRING_CODEC, entry -> ActorPropEntry.identifierToString(entry.propLeftItemId()), NULLABLE_IDENTIFIER_STRING_CODEC, entry -> ActorPropEntry.identifierToString(entry.propRightItemId()), (actorKey, leftId, rightId) -> new ActorPropEntry((String)actorKey, ActorPropEntry.parseIdentifier(leftId), ActorPropEntry.parseIdentifier(rightId)));
+        public static final PacketCodec<RegistryByteBuf, ActorPropEntry> CODEC =
+                PacketCodec.of(ActorPropEntry::encodePacket, ActorPropEntry::decodePacket);
+
+        private static void encodePacket(ActorPropEntry entry, RegistryByteBuf buf) {
+            buf.writeString(entry.actorKey(), 128);
+            buf.writeString(identifierToString(entry.propLeftItemId()), 256);
+            buf.writeString(identifierToString(entry.propRightItemId()), 256);
+        }
+
+        private static ActorPropEntry decodePacket(RegistryByteBuf buf) {
+            return new ActorPropEntry(buf.readString(128), parseIdentifier(buf.readString(256)), parseIdentifier(buf.readString(256)));
+        }
 
         public ActorPropEntry(String actorKey, @Nullable Identifier propLeftItemId, @Nullable Identifier propRightItemId) {
             this.actorKey = actorKey = actorKey == null ? "" : actorKey.trim();
@@ -170,7 +224,7 @@ public record AnimationStageInfo(Identifier animationId, boolean loop, long leng
             if (stack == null || stack.isEmpty()) {
                 return null;
             }
-            return new AfwGeckoModelEvents.BoneItemProp(stack, ItemDisplayContext.THIRD_PERSON_LEFT_HAND);
+            return new AfwGeckoModelEvents.BoneItemProp(stack, ModelTransformationMode.THIRD_PERSON_LEFT_HAND);
         }
 
         @Nullable
@@ -179,7 +233,7 @@ public record AnimationStageInfo(Identifier animationId, boolean loop, long leng
             if (stack == null || stack.isEmpty()) {
                 return null;
             }
-            return new AfwGeckoModelEvents.BoneItemProp(stack, ItemDisplayContext.THIRD_PERSON_RIGHT_HAND);
+            return new AfwGeckoModelEvents.BoneItemProp(stack, ModelTransformationMode.THIRD_PERSON_RIGHT_HAND);
         }
 
         @Nullable

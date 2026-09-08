@@ -17,33 +17,30 @@ import com.afwid.network.AnimationStageInfo;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import net.fabricmc.fabric.api.event.Event;
-import net.fabricmc.fabric.api.event.EventFactory;
 import net.minecraft.util.Identifier;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.server.network.ServerPlayerEntity;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class AfwAnimationEvents {
-    public static final Event<@NotNull Start> START = EventFactory.createArrayBacked(Start.class, callbacks -> (world, instanceId, animationId, actorUuids, actorKeys, stages, startTick, requester, damageBehavior, ignoreAttackers) -> {
+    public static final AfwEvent<Start> START = new AfwEvent<>(callbacks -> (world, instanceId, animationId, actorUuids, actorKeys, stages, startTick, requester, damageBehavior, ignoreAttackers) -> {
         for (Start callback : callbacks) {
             callback.onStart(world, instanceId, animationId, actorUuids, actorKeys, stages, startTick, requester, damageBehavior, ignoreAttackers);
         }
     });
-    public static final Event<@NotNull AllowStart> ALLOW_START = EventFactory.createArrayBacked(AllowStart.class, callbacks -> (world, animationId, actorUuids, actorKeys, stages, requester, damageBehavior, ignoreAttackers, metadata) -> {
+    public static final AfwEvent<AllowStart> ALLOW_START = new AfwEvent<>(callbacks -> (world, animationId, actorUuids, actorKeys, stages, requester, damageBehavior, ignoreAttackers, metadata) -> {
         for (AllowStart callback : callbacks) {
             if (callback.allowStart(world, animationId, actorUuids, actorKeys, stages, requester, damageBehavior, ignoreAttackers, metadata)) continue;
             return false;
         }
         return true;
     });
-    public static final Event<@NotNull Stop> STOP = EventFactory.createArrayBacked(Stop.class, callbacks -> (world, instanceId, animationId, actorUuids, actorKeys, stages) -> {
+    public static final AfwEvent<Stop> STOP = new AfwEvent<>(callbacks -> (world, instanceId, animationId, actorUuids, actorKeys, stages) -> {
         for (Stop callback : callbacks) {
             callback.onStop(world, instanceId, animationId, actorUuids, actorKeys, stages);
         }
     });
-    public static final Event<@NotNull StageAdvance> STAGE_ADVANCE = EventFactory.createArrayBacked(StageAdvance.class, callbacks -> (world, instanceId, animationId, actorUuids, actorKeys, advanceTick) -> {
+    public static final AfwEvent<StageAdvance> STAGE_ADVANCE = new AfwEvent<>(callbacks -> (world, instanceId, animationId, actorUuids, actorKeys, advanceTick) -> {
         for (StageAdvance callback : callbacks) {
             callback.onStageAdvance(world, instanceId, animationId, actorUuids, actorKeys, advanceTick);
         }

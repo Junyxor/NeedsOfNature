@@ -50,17 +50,11 @@ import com.afwid.network.DebugStopAnimationC2SPayload;
 import com.afwid.network.StartAnimationS2CPayload;
 import com.afwid.network.StopAllAnimationsS2CPayload;
 import com.afwid.network.StopAnimationS2CPayload;
-import com.afwid.network.AfwPacket;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.util.Formatting;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -76,18 +70,29 @@ import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.registry.Registries;
+import net.minecraft.network.packet.CustomPayload;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-public class AnimationFrameworkClient
-implements ClientModInitializer {
+@Mod(value = AnimationFramework.MOD_ID, dist = Dist.CLIENT)
+public class AnimationFrameworkClient {
     private static final String KEY_CATEGORY = "key.categories.animationframework";
-    private static final KeyBinding SELECT_ACTOR_KEY = KeyBindingHelper.registerKeyBinding((KeyBinding)AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.select_actor"));
-    private static final KeyBinding SELECT_SELF_KEY = KeyBindingHelper.registerKeyBinding((KeyBinding)AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.select_self"));
-    private static final KeyBinding START_DEBUG_KEY = KeyBindingHelper.registerKeyBinding((KeyBinding)AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.start_debug_animation"));
-    private static final KeyBinding STOP_ALL_DEBUG_KEY = KeyBindingHelper.registerKeyBinding((KeyBinding)AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.stop_all_debug"));
-    private static final KeyBinding STOP_INSTANCE_DEBUG_KEY = KeyBindingHelper.registerKeyBinding((KeyBinding)AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.stop_instance_debug"));
-    private static final KeyBinding NEXT_STAGE_DEBUG_KEY = KeyBindingHelper.registerKeyBinding((KeyBinding)AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.next_stage_debug"));
-    private static final KeyBinding SPEED_UP_DEBUG_KEY = KeyBindingHelper.registerKeyBinding((KeyBinding)AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.speed_up_debug"));
-    private static final KeyBinding SPEED_DOWN_DEBUG_KEY = KeyBindingHelper.registerKeyBinding((KeyBinding)AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.speed_down_debug"));
+    private static final KeyBinding SELECT_ACTOR_KEY = AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.select_actor");
+    private static final KeyBinding SELECT_SELF_KEY = AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.select_self");
+    private static final KeyBinding START_DEBUG_KEY = AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.start_debug_animation");
+    private static final KeyBinding STOP_ALL_DEBUG_KEY = AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.stop_all_debug");
+    private static final KeyBinding STOP_INSTANCE_DEBUG_KEY = AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.stop_instance_debug");
+    private static final KeyBinding NEXT_STAGE_DEBUG_KEY = AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.next_stage_debug");
+    private static final KeyBinding SPEED_UP_DEBUG_KEY = AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.speed_up_debug");
+    private static final KeyBinding SPEED_DOWN_DEBUG_KEY = AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.speed_down_debug");
     private static final IntArrayList SELECTED_ACTOR_IDS = new IntArrayList();
     private static UUID SELECTED_INSTANCE_ID = null;
     private static boolean wasSelfAnimating = false;
@@ -121,70 +126,99 @@ implements ClientModInitializer {
         return new KeyBinding(translationKey, InputUtil.Type.KEYSYM, InputUtil.UNKNOWN_KEY.getCode(), KEY_CATEGORY);
     }
 
-    public void onInitializeClient() {
+    public AnimationFrameworkClient(IEventBus modEventBus) {
         AfwClientConfig.reload();
-        AfwVanillaTextureResolver.registerReloadListener();
-        AfwBoneTextureOverrides.registerReloadListener();
-        AfwSoundEffects.registerReloadListener();
-        AfwAnimationAssetDiagnostics.registerReloadListener();
-        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> AnimationFrameworkClient.sendDebugChatPreference());
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            AfwClientAnimationRuntime.stopAllNow();
-            AfwAnimatedCameraPoseTracker.clear();
-            AfwAnimationCameraZoom.reset();
-            AnimationFrameworkClient.resetCameraPerspective(client);
-        });
-        ClientPlayNetworking.registerGlobalReceiver(StartAnimationS2CPayload.ID, (client, handler, buf, responseSender) -> {
-            StartAnimationS2CPayload payload = StartAnimationS2CPayload.read(buf);
-            client.execute(() -> {
-            AfwClientAnimationRuntime.queueStart(payload.animationId(), payload.instanceId(), payload.actorUuids(), payload.actorKeys(), payload.stages(), payload.startTick(), payload.speed(), payload.lockOrientation(), payload.lockedYaw(), payload.lockedHeadYaw(), payload.lockedPitch(), payload.cameraOrbitTarget());
-            ClientPlayerEntity player = client.player;
-            if (player != null && AnimationFrameworkClient.shouldShow(AfwDebugChatCategory.INFO)) {
-                String keysStr = payload.actorKeys().isEmpty() ? "none" : payload.actorKeys().toString();
-                player.sendMessage(AnimationFrameworkClient.tr("start_received", payload.animationId(), payload.actorUuids().size(), keysStr), false);
-            }
-            });
-        });
-        ClientPlayNetworking.registerGlobalReceiver(StopAllAnimationsS2CPayload.ID, (client, handler, buf, responseSender) -> {
-            StopAllAnimationsS2CPayload payload = StopAllAnimationsS2CPayload.read(buf);
-            client.execute(() -> {
-            AfwClientAnimationRuntime.queueStopAll(payload.stopTick());
-            ClientPlayerEntity player = client.player;
-            if (player != null && AnimationFrameworkClient.shouldShow(AfwDebugChatCategory.INFO)) {
-                player.sendMessage(AnimationFrameworkClient.tr("stop_all_received", new Object[0]), false);
-            }
-            });
-        });
-        ClientPlayNetworking.registerGlobalReceiver(AdvanceAnimationStageS2CPayload.ID, (client, handler, buf, responseSender) -> {
-            AdvanceAnimationStageS2CPayload payload = AdvanceAnimationStageS2CPayload.read(buf);
-            client.execute(() -> AfwClientAnimationRuntime.queueStageAdvance(payload.instanceId(), payload.advanceTick(), payload.stageIndex()));
-        });
-        ClientPlayNetworking.registerGlobalReceiver(AnimationSpeedUpdateS2CPayload.ID, (client, handler, buf, responseSender) -> {
-            AnimationSpeedUpdateS2CPayload payload = AnimationSpeedUpdateS2CPayload.read(buf);
-            client.execute(() -> AfwClientAnimationRuntime.queueSpeedUpdate(payload.instanceId(), payload.speed()));
-        });
-        ClientPlayNetworking.registerGlobalReceiver(StopAnimationS2CPayload.ID, (client, handler, buf, responseSender) -> {
-            StopAnimationS2CPayload payload = StopAnimationS2CPayload.read(buf);
-            client.execute(() -> {
-            AfwClientAnimationRuntime.queueStop(payload.instanceId(), payload.stopTick());
-            ClientPlayerEntity player = client.player;
-            if (player != null && AnimationFrameworkClient.shouldShow(AfwDebugChatCategory.INFO)) {
-                player.sendMessage(AnimationFrameworkClient.tr("stop_instance_received", new Object[0]), false);
-            }
-            });
-        });
-        ClientTickEvents.END_CLIENT_TICK.register(AnimationFrameworkClient::onClientTick);
+        modEventBus.addListener(AnimationFrameworkClient::registerKeyMappings);
+        modEventBus.addListener(AnimationFrameworkClient::registerReloadListeners);
+        NeoForge.EVENT_BUS.addListener(AnimationFrameworkClient::onClientTickEvent);
+        NeoForge.EVENT_BUS.addListener(AnimationFrameworkClient::onLoggingIn);
+        NeoForge.EVENT_BUS.addListener(AnimationFrameworkClient::onLoggingOut);
+    }
+
+    private static void registerKeyMappings(RegisterKeyMappingsEvent event) {
+        event.register(SELECT_ACTOR_KEY);
+        event.register(SELECT_SELF_KEY);
+        event.register(START_DEBUG_KEY);
+        event.register(STOP_ALL_DEBUG_KEY);
+        event.register(STOP_INSTANCE_DEBUG_KEY);
+        event.register(NEXT_STAGE_DEBUG_KEY);
+        event.register(SPEED_UP_DEBUG_KEY);
+        event.register(SPEED_DOWN_DEBUG_KEY);
+    }
+
+    private static void registerReloadListeners(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(new AfwVanillaTextureResolver.Reloader());
+        event.registerReloadListener(new AfwBoneTextureOverrides.Reloader());
+        event.registerReloadListener(new AfwSoundEffects.Reloader());
+        event.registerReloadListener(new AfwAnimationAssetDiagnostics.Reloader());
+    }
+
+    private static void onClientTickEvent(ClientTickEvent.Post event) {
+        onClientTick(MinecraftClient.getInstance());
+    }
+
+    private static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
+        sendDebugChatPreference();
+    }
+
+    private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        AfwClientAnimationRuntime.stopAllNow();
+        AfwAnimatedCameraPoseTracker.clear();
+        AfwAnimationCameraZoom.reset();
+        resetCameraPerspective(client);
+    }
+
+    public static void handleStartPayload(StartAnimationS2CPayload payload, IPayloadContext context) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        AfwClientAnimationRuntime.queueStart(payload.animationId(), payload.instanceId(), payload.actorUuids(),
+                payload.actorKeys(), payload.stages(), payload.startTick(), payload.speed(), payload.lockOrientation(),
+                payload.lockedYaw(), payload.lockedHeadYaw(), payload.lockedPitch(), payload.cameraOrbitTarget());
+        ClientPlayerEntity player = client.player;
+        if (player != null && shouldShow(AfwDebugChatCategory.INFO)) {
+            String keysStr = payload.actorKeys().isEmpty() ? "none" : payload.actorKeys().toString();
+            player.sendMessage(tr("start_received", payload.animationId(), payload.actorUuids().size(), keysStr), false);
+        }
+    }
+
+    public static void handleStopAllPayload(StopAllAnimationsS2CPayload payload, IPayloadContext context) {
+        AfwClientAnimationRuntime.queueStopAll(payload.stopTick());
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player != null && shouldShow(AfwDebugChatCategory.INFO)) {
+            player.sendMessage(tr("stop_all_received", new Object[0]), false);
+        }
+    }
+
+    public static void handleAdvanceStagePayload(AdvanceAnimationStageS2CPayload payload, IPayloadContext context) {
+        AfwClientAnimationRuntime.queueStageAdvance(payload.instanceId(), payload.advanceTick(), payload.stageIndex());
+    }
+
+    public static void handleSpeedUpdatePayload(AnimationSpeedUpdateS2CPayload payload, IPayloadContext context) {
+        AfwClientAnimationRuntime.queueSpeedUpdate(payload.instanceId(), payload.speed());
+    }
+
+    public static void handleStopPayload(StopAnimationS2CPayload payload, IPayloadContext context) {
+        AfwClientAnimationRuntime.queueStop(payload.instanceId(), payload.stopTick());
+        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        if (player != null && shouldShow(AfwDebugChatCategory.INFO)) {
+            player.sendMessage(tr("stop_instance_received", new Object[0]), false);
+        }
     }
 
     public static void sendDebugChatPreference() {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null && client.player != null && ClientPlayNetworking.canSend(DebugChatPreferenceC2SPayload.ID)) {
+        if (client != null && client.player != null && canSendToServer()) {
             AnimationFrameworkClient.sendPacket(new DebugChatPreferenceC2SPayload(AfwClientConfig.get().debugChatMode().id()));
         }
     }
 
-    private static void sendPacket(AfwPacket packet) {
-        ClientPlayNetworking.send(packet.id(), packet.toBuffer());
+    private static void sendPacket(CustomPayload packet) {
+        PacketDistributor.sendToServer(packet);
+    }
+
+    private static boolean canSendToServer() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return client != null && client.getNetworkHandler() != null;
     }
 
     private static void onClientTick(MinecraftClient client) {
@@ -231,7 +265,7 @@ implements ClientModInitializer {
         if (player == null) {
             return;
         }
-        if (!ClientPlayNetworking.canSend(DebugStopAllAnimationsC2SPayload.ID)) {
+        if (!canSendToServer()) {
             AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("server_cannot_receive_stop_all", new Object[0]));
             AfwClientAnimationRuntime.stopAllNow();
             return;
@@ -254,7 +288,7 @@ implements ClientModInitializer {
             AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("no_active_instance_to_stop", new Object[0]));
             return;
         }
-        if (!ClientPlayNetworking.canSend(DebugStopAnimationC2SPayload.ID)) {
+        if (!canSendToServer()) {
             AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("server_cannot_receive_stop_instance", new Object[0]));
             return;
         }
@@ -337,7 +371,7 @@ implements ClientModInitializer {
                 AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("no_extra_actors_for_join", new Object[0]));
                 return;
             }
-            if (!ClientPlayNetworking.canSend(DebugJoinAnimationC2SPayload.ID)) {
+            if (!canSendToServer()) {
                 AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("server_cannot_receive_join", new Object[0]));
                 return;
             }
@@ -347,7 +381,7 @@ implements ClientModInitializer {
             SELECTED_ACTOR_IDS.clear();
             return;
         }
-        if (!ClientPlayNetworking.canSend(DebugStartAnimationC2SPayload.ID)) {
+        if (!canSendToServer()) {
             AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("server_cannot_receive_debug_packets", new Object[0]));
             return;
         }
@@ -376,7 +410,7 @@ implements ClientModInitializer {
             AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("no_active_instance_to_advance", new Object[0]));
             return;
         }
-        if (ClientPlayNetworking.canSend(DebugAdvanceStageC2SPayload.ID)) {
+        if (canSendToServer()) {
             AnimationFrameworkClient.sendPacket(new DebugAdvanceStageC2SPayload(instanceToAdvance));
             AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("next_stage_requested_server", new Object[0]));
         } else {
@@ -398,7 +432,7 @@ implements ClientModInitializer {
             AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("no_active_instance_to_adjust_speed", new Object[0]));
             return;
         }
-        if (ClientPlayNetworking.canSend(AdjustAnimationSpeedC2SPayload.ID)) {
+        if (canSendToServer()) {
             AnimationFrameworkClient.sendPacket(new AdjustAnimationSpeedC2SPayload(targetInstance, multiplier));
             double percent = (multiplier - 1.0) * 100.0;
             String delta = (percent >= 0.0 ? "+" : "") + String.format(Locale.ROOT, "%.0f%%", percent);
@@ -414,7 +448,7 @@ implements ClientModInitializer {
             return;
         }
         ClientPlayerEntity player = client.player;
-        boolean canSend = ClientPlayNetworking.canSend(DebugStopAnimationC2SPayload.ID);
+        boolean canSend = canSendToServer();
         for (UUID instanceId : completed) {
             if (canSend) {
                 AnimationFrameworkClient.sendPacket(new DebugStopAnimationC2SPayload(instanceId));

@@ -974,7 +974,7 @@ public final class AfwClientAnimationRuntime {
         if (candidate != null) {
             return candidate;
         }
-        if (anchor instanceof PlayerEntity && (candidate = AfwClientAnimationRuntime.resolveSoundCandidateForParams(stageAnimationId, "player", playerType = new Identifier((String)"minecraft", (String)"player"), false)) != null) {
+        if (anchor instanceof PlayerEntity && (candidate = AfwClientAnimationRuntime.resolveSoundCandidateForParams(stageAnimationId, "player", playerType = Identifier.of((String)"minecraft", (String)"player"), false)) != null) {
             return candidate;
         }
         return null;

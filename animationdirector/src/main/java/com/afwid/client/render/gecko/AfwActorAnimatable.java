@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
-import net.minecraft.particle.DefaultParticleType;
+import net.minecraft.particle.SimpleParticleType;
 import net.minecraft.particle.ParticleEffect;
 import net.minecraft.particle.ParticleType;
 import net.minecraft.registry.Registries;
@@ -20,15 +20,15 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
-import software.bernie.geckolib.core.animatable.GeoAnimatable;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.AnimationState;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.keyframe.event.ParticleKeyframeEvent;
-import software.bernie.geckolib.core.keyframe.event.data.ParticleKeyframeData;
-import software.bernie.geckolib.core.object.PlayState;
+import software.bernie.geckolib.animatable.GeoAnimatable;
+import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
+import software.bernie.geckolib.animation.AnimatableManager;
+import software.bernie.geckolib.animation.AnimationController;
+import software.bernie.geckolib.animation.AnimationState;
+import software.bernie.geckolib.animation.RawAnimation;
+import software.bernie.geckolib.animation.keyframe.event.ParticleKeyframeEvent;
+import software.bernie.geckolib.animation.keyframe.event.data.ParticleKeyframeData;
+import software.bernie.geckolib.animation.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 /**
@@ -42,9 +42,9 @@ import software.bernie.geckolib.util.GeckoLibUtil;
 public final class AfwActorAnimatable implements GeoAnimatable {
     public static final AfwActorAnimatable INSTANCE = new AfwActorAnimatable();
 
-    private static final Identifier DEFAULT_MODEL = new Identifier("animationframework", "entity/missingmodel");
-    private static final Identifier DEFAULT_TEXTURE = new Identifier("animationframework", "textures/missingmodel.png");
-    private static final Identifier PLACEHOLDER_ANIMATIONS = new Identifier("animationframework", "afw/placeholder");
+    private static final Identifier DEFAULT_MODEL = Identifier.of("animationframework", "entity/missingmodel");
+    private static final Identifier DEFAULT_TEXTURE = Identifier.of("animationframework", "textures/missingmodel.png");
+    private static final Identifier PLACEHOLDER_ANIMATIONS = Identifier.of("animationframework", "afw/placeholder");
     private static final Map<String, RawAnimation> LOOP_CACHE = new ConcurrentHashMap<>();
     private static final Map<String, RawAnimation> PLAY_ONCE_CACHE = new ConcurrentHashMap<>();
     private static final Set<Identifier> MISSING_ANIMATION_WARNED =
@@ -173,7 +173,7 @@ public final class AfwActorAnimatable implements GeoAnimatable {
             return;
         }
         ParticleType<?> type = Registries.PARTICLE_TYPE.get(particleId);
-        if (!(type instanceof DefaultParticleType particle)) {
+        if (!(type instanceof SimpleParticleType particle)) {
             return;
         }
         Vec3d locatorPosition = AfwParticleKeyframes.findLocatorPosition(context.actorUuid(), data.getLocator());
@@ -184,7 +184,7 @@ public final class AfwActorAnimatable implements GeoAnimatable {
         }
     }
 
-    private static void spawnAtActorFallback(UUID actorUuid, DefaultParticleType particle) {
+    private static void spawnAtActorFallback(UUID actorUuid, SimpleParticleType particle) {
         Entity actor = resolveActor(actorUuid);
         if (actor == null || !(actor.getWorld() instanceof ClientWorld world)) {
             return;
@@ -192,14 +192,14 @@ public final class AfwActorAnimatable implements GeoAnimatable {
         spawnParticle(world, particle, new Vec3d(actor.getX(), actor.getBodyY(0.5), actor.getZ()));
     }
 
-    private static void spawnParticle(UUID actorUuid, DefaultParticleType particle, Vec3d pos) {
+    private static void spawnParticle(UUID actorUuid, SimpleParticleType particle, Vec3d pos) {
         Entity actor = resolveActor(actorUuid);
         ClientWorld world = actor != null && actor.getWorld() instanceof ClientWorld actorWorld
                 ? actorWorld : MinecraftClient.getInstance().world;
         spawnParticle(world, particle, pos);
     }
 
-    private static void spawnParticle(ClientWorld world, DefaultParticleType particle, Vec3d pos) {
+    private static void spawnParticle(ClientWorld world, SimpleParticleType particle, Vec3d pos) {
         if (world == null || particle == null || pos == null
                 || !Double.isFinite(pos.x) || !Double.isFinite(pos.y) || !Double.isFinite(pos.z)) {
             return;

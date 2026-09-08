@@ -8,38 +8,32 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
-import net.minecraft.resource.ResourceType;
+import net.minecraft.resource.SynchronousResourceReloader;
 import net.minecraft.util.Identifier;
 
 public final class AfwVanillaTextureResolver {
     private static final Map<Identifier, Identifier> REDIRECT_CACHE = new ConcurrentHashMap<>();
     private static final List<Identifier> UPLOADED_TEXTURES = new ArrayList<>();
     private static final Identifier RELOAD_ID =
-            new Identifier("animationframework", "vanilla_texture_resolver");
+            Identifier.of("animationframework", "vanilla_texture_resolver");
 
     private AfwVanillaTextureResolver() {
     }
 
+    /** Registration is performed by AnimationFrameworkClient on NeoForge's client mod bus. */
     public static void registerReloadListener() {
-        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES)
-                .registerReloadListener(new SimpleSynchronousResourceReloadListener() {
-                    @Override
-                    public Identifier getFabricId() {
-                        return RELOAD_ID;
-                    }
+    }
 
-                    @Override
-                    public void reload(ResourceManager manager) {
-                        clearCache();
-                    }
-                });
+    public static final class Reloader implements SynchronousResourceReloader {
+        @Override
+        public void reload(ResourceManager manager) {
+            clearCache();
+        }
     }
 
     public static Identifier resolveTexture(Identifier textureId) {
@@ -61,7 +55,7 @@ public final class AfwVanillaTextureResolver {
             }
             Resource selected = resources.get(resources.size() - 1);
             for (Resource resource : resources) {
-                String packName = resource.getResourcePackName();
+                String packName = resource.getPackId();
                 if ("vanilla".equals(packName) || "minecraft".equals(packName)
                         || "default".equalsIgnoreCase(packName)) {
                     selected = resource;
@@ -70,7 +64,7 @@ public final class AfwVanillaTextureResolver {
             }
             try (InputStream stream = selected.getInputStream()) {
                 NativeImage image = NativeImage.read(stream);
-                Identifier redirected = new Identifier("animationframework",
+                Identifier redirected = Identifier.of("animationframework",
                         "vanilla_textures/" + textureId.getNamespace() + "/" + textureId.getPath());
                 client.getTextureManager().registerTexture(
                         redirected, new NativeImageBackedTexture(image));

@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.UUID;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.Uuids;
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
@@ -36,7 +35,7 @@ public record StartAnimationS2CPayload(Identifier animationId, UUID instanceId, 
     public StartAnimationS2CPayload(Identifier animationId, UUID instanceId, List<UUID> actorUuids, List<String> actorKeys, List<AnimationStageInfo> stages, long startTick, double speed, boolean lockOrientation, float lockedYaw, float lockedHeadYaw, float lockedPitch, @Nullable Vec3d cameraOrbitTarget) {
         actorUuids = List.copyOf(actorUuids);
         actorKeys = actorKeys == null ? List.of() : List.copyOf(actorKeys);
-        List<Object> list = stages = stages == null ? List.of() : List.copyOf(stages);
+        stages = stages == null ? List.of() : List.copyOf(stages);
         if (actorUuids.size() > 16) {
             throw new IllegalArgumentException("Too many actor UUIDs: " + actorUuids.size());
         }
@@ -54,7 +53,7 @@ public record StartAnimationS2CPayload(Identifier animationId, UUID instanceId, 
             lockedHeadYaw = 0.0f;
             lockedPitch = 0.0f;
         }
-        if (cameraOrbitTarget != null && !cameraOrbitTarget.isFinite()) {
+        if (cameraOrbitTarget != null && !(Double.isFinite(cameraOrbitTarget.x) && Double.isFinite(cameraOrbitTarget.y) && Double.isFinite(cameraOrbitTarget.z))) {
             cameraOrbitTarget = null;
         }
     }
@@ -64,11 +63,11 @@ public record StartAnimationS2CPayload(Identifier animationId, UUID instanceId, 
     }
 
     private static void encode(StartAnimationS2CPayload payload, RegistryByteBuf buf) {
-        Identifier.PACKET_CODEC.encode((Object)buf, (Object)payload.animationId());
-        Uuids.PACKET_CODEC.encode((Object)buf, (Object)payload.instanceId());
+        buf.writeIdentifier(payload.animationId());
+        buf.writeUuid(payload.instanceId());
         buf.writeVarInt(payload.actorUuids().size());
         for (UUID uuid : payload.actorUuids()) {
-            Uuids.PACKET_CODEC.encode((Object)buf, (Object)uuid);
+            buf.writeUuid(uuid);
         }
         buf.writeVarInt(payload.actorKeys().size());
         for (String key : payload.actorKeys()) {
@@ -76,7 +75,7 @@ public record StartAnimationS2CPayload(Identifier animationId, UUID instanceId, 
         }
         buf.writeVarInt(payload.stages().size());
         for (AnimationStageInfo stage : payload.stages()) {
-            AnimationStageInfo.CODEC.encode((Object)buf, (Object)stage);
+            AnimationStageInfo.CODEC.encode(buf, stage);
         }
         buf.writeLong(payload.startTick());
         buf.writeDouble(payload.speed());
@@ -94,15 +93,15 @@ public record StartAnimationS2CPayload(Identifier animationId, UUID instanceId, 
     }
 
     private static StartAnimationS2CPayload decode(RegistryByteBuf buf) {
-        Identifier animationId = (Identifier)Identifier.PACKET_CODEC.decode((Object)buf);
-        UUID instanceId = (UUID)Uuids.PACKET_CODEC.decode((Object)buf);
+        Identifier animationId = buf.readIdentifier();
+        UUID instanceId = buf.readUuid();
         int actorCount = buf.readVarInt();
         if (actorCount < 0 || actorCount > 16) {
             throw new IllegalArgumentException("Too many actor UUIDs: " + actorCount);
         }
         ArrayList<UUID> actorUuids = new ArrayList<UUID>(actorCount);
         for (int i = 0; i < actorCount; ++i) {
-            actorUuids.add((UUID)Uuids.PACKET_CODEC.decode((Object)buf));
+            actorUuids.add(buf.readUuid());
         }
         int keyCount = buf.readVarInt();
         if (keyCount < 0 || keyCount > 16) {
@@ -118,7 +117,7 @@ public record StartAnimationS2CPayload(Identifier animationId, UUID instanceId, 
         }
         ArrayList<AnimationStageInfo> stages = new ArrayList<AnimationStageInfo>(stageCount);
         for (int i = 0; i < stageCount; ++i) {
-            stages.add((AnimationStageInfo)AnimationStageInfo.CODEC.decode((Object)buf));
+            stages.add(AnimationStageInfo.CODEC.decode(buf));
         }
         long startTick = buf.readLong();
         double speed = buf.readDouble();
