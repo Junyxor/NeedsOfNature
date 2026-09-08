@@ -1,50 +1,74 @@
 plugins {
-    id 'net.fabricmc.fabric-loom-remap' version "${loom_version}" apply false
+    id 'architectury-plugin' version '3.4-SNAPSHOT'
+    id 'dev.architectury.loom' version '1.11-SNAPSHOT' apply false
+}
+
+architectury {
+    minecraft = rootProject.minecraft_version
 }
 
 subprojects {
-    apply plugin: 'net.fabricmc.fabric-loom-remap'
+    apply plugin: 'java'
+    apply plugin: 'architectury-plugin'
+    apply plugin: 'dev.architectury.loom'
+
+    architectury {
+        platformSetupLoomIde()
+        neoForge()
+    }
 
     version = rootProject.mod_version
     group = rootProject.maven_group
 
     base {
-        archivesName = "${project.name}-1.20.1"
+        archivesName = "${project.name}-1.21.1-neoforge"
     }
 
     repositories {
         mavenCentral()
         maven { url = 'https://maven.fabricmc.net/' }
-        maven { url = 'https://maven.terraformersmc.com/releases/' }
-        maven { url = 'https://maven.ladysnake.org/releases' }
-        maven { url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/' }
+        maven { url = 'https://maven.architectury.dev/' }
+        maven { url = 'https://maven.neoforged.net/releases/' }
+        maven {
+            name = 'GeckoLib'
+            url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+            content { includeGroup 'software.bernie.geckolib' }
+        }
     }
 
     dependencies {
-        minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
-        mappings "net.fabricmc:yarn:${rootProject.yarn_mappings}:v2"
-        modImplementation "net.fabricmc:fabric-loader:${rootProject.loader_version}"
-        modImplementation "net.fabricmc.fabric-api:fabric-api:${rootProject.fabric_api_version}"
-        modImplementation "software.bernie.geckolib:geckolib-fabric-1.20.1:${rootProject.geckolib_version}"
+        minecraft "net.minecraft:minecraft:${rootProject.minecraft_version}"
+        mappings loom.layered {
+            mappings "net.fabricmc:yarn:${rootProject.yarn_mappings}:v2"
+            mappings "dev.architectury:yarn-mappings-patch-neoforge:${rootProject.yarn_mappings_patch_neoforge_version}"
+        }
+        neoForge "net.neoforged:neoforge:${rootProject.neoforge_version}"
+        modImplementation "software.bernie.geckolib:geckolib-neoforge-${rootProject.minecraft_version}:${rootProject.geckolib_version}"
     }
 
     processResources {
         inputs.property 'version', project.version
-        filesMatching('fabric.mod.json') {
-            expand(version: project.version)
+        inputs.property 'minecraft_version', rootProject.minecraft_version
+        inputs.property 'neoforge_version', rootProject.neoforge_version
+        filesMatching('META-INF/neoforge.mods.toml') {
+            expand(
+                version: project.version,
+                minecraft_version: rootProject.minecraft_version,
+                neoforge_version: rootProject.neoforge_version
+            )
         }
     }
 
     tasks.withType(JavaCompile).configureEach {
-        options.release = 17
+        options.release = 21
         options.encoding = 'UTF-8'
         options.compilerArgs += ['-Xmaxerrs', '2000']
     }
 
     java {
         withSourcesJar()
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 }
 
@@ -60,9 +84,6 @@ project(':needsofnature') {
     }
     dependencies {
         implementation project(':animationdirector')
-        modCompileOnly "dev.emi:trinkets:${rootProject.trinkets_version}"
-        modCompileOnly "dev.onyxstudios.cardinal-components-api:cardinal-components-base:5.2.0"
-        modCompileOnly "dev.onyxstudios.cardinal-components-api:cardinal-components-entity:5.2.0"
         compileOnly "io.github.blackspherefollower:buttplug4j:4.0.278"
         compileOnly "io.github.blackspherefollower:buttplug4j.connectors.jetty.websocket.client:4.0.278"
     }
