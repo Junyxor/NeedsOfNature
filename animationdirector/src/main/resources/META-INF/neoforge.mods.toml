@@ -1,0 +1,39 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="All Rights Reserved"
+
+[[mods]]
+modId="animationframework"
+version="${version}"
+displayName="Animation Director"
+authors="L1Z0"
+description='''
+Mod that allows GeckoLib animations to be played with one or more entities or players.
+'''
+
+[[mixins]]
+config="animationframework.mixins.json"
+
+[[mixins]]
+config="animationframework.client.mixins.json"
+
+[[dependencies.animationframework]]
+modId="neoforge"
+type="required"
+versionRange="[${neoforge_version},)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.animationframework]]
+modId="minecraft"
+type="required"
+versionRange="[${minecraft_version}]"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.animationframework]]
+modId="geckolib"
+type="required"
+versionRange="[4.8.4,)"
+ordering="AFTER"
+side="BOTH"
