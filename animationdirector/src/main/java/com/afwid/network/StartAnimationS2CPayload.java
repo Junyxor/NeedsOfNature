@@ -32,7 +32,7 @@ public record StartAnimationS2CPayload(Identifier animationId, UUID instanceId, 
     private static final int MAX_STAGES = 16;
     public static final PacketCodec<RegistryByteBuf, StartAnimationS2CPayload> CODEC = PacketCodec.of(StartAnimationS2CPayload::encode, StartAnimationS2CPayload::decode);
 
-    public StartAnimationS2CPayload(Identifier animationId, UUID instanceId, List<UUID> actorUuids, List<String> actorKeys, List<AnimationStageInfo> stages, long startTick, double speed, boolean lockOrientation, float lockedYaw, float lockedHeadYaw, float lockedPitch, @Nullable Vec3d cameraOrbitTarget) {
+    public StartAnimationS2CPayload {
         actorUuids = List.copyOf(actorUuids);
         actorKeys = actorKeys == null ? List.of() : List.copyOf(actorKeys);
         stages = stages == null ? List.of() : List.copyOf(stages);
@@ -132,4 +132,3 @@ public record StartAnimationS2CPayload(Identifier animationId, UUID instanceId, 
         return new StartAnimationS2CPayload(animationId, instanceId, actorUuids, actorKeys, stages, startTick, speed, lockOrientation, lockedYaw, lockedHeadYaw, lockedPitch, cameraOrbitTarget);
     }
 }
-
