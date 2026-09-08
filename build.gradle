@@ -75,12 +75,14 @@ subprojects {
 project(':animationdirector') {
     sourceSets {
         main.java.exclude 'com/afwid/integration/AfwModMenuIntegration.java'
+        main.java.exclude 'com/afwid/AnimationFrameworkDataGenerator.java'
     }
 }
 
 project(':needsofnature') {
     sourceSets {
         main.java.exclude 'com/nonid/integration/NonModMenuIntegration.java'
+        main.java.exclude 'com/nonid/NeedsOfNatureDataGenerator.java'
     }
     dependencies {
         implementation project(':animationdirector')
