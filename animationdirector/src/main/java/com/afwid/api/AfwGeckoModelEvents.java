@@ -21,7 +21,7 @@ import net.fabricmc.fabric.api.event.EventFactory;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.Identifier;
-import net.minecraft.client.render.model.json.ModelTransformationMode;
+import net.minecraft.item.ItemDisplayContext;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -79,14 +79,14 @@ public final class AfwGeckoModelEvents {
     public record ModelOverride(@Nullable Identifier model, @Nullable Identifier texture) {
     }
 
-    public record BoneItemProp(ItemStack stack, ModelTransformationMode displayContext) {
+    public record BoneItemProp(ItemStack stack, ItemDisplayContext displayContext) {
         public BoneItemProp(ItemStack stack) {
-            this(stack, ModelTransformationMode.THIRD_PERSON_RIGHT_HAND);
+            this(stack, ItemDisplayContext.THIRD_PERSON_RIGHT_HAND);
         }
 
         public BoneItemProp {
             stack = stack == null ? ItemStack.EMPTY : stack.copy();
-            displayContext = displayContext == null ? ModelTransformationMode.THIRD_PERSON_RIGHT_HAND : displayContext;
+            displayContext = displayContext == null ? ItemDisplayContext.THIRD_PERSON_RIGHT_HAND : displayContext;
         }
     }
 }

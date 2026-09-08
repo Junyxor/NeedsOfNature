@@ -30,8 +30,7 @@ public final class AfwParticleKeyframes {
         for (Map.Entry<String, Vec3d> entry : positions.entrySet()) {
             String locator = AfwParticleKeyframes.cleanLocator(entry.getKey());
             Vec3d position = entry.getValue();
-            if (locator.isEmpty() || position == null || !Double.isFinite(position.x)
-                    || !Double.isFinite(position.y) || !Double.isFinite(position.z)) continue;
+            if (locator.isEmpty() || position == null || !position.isFinite()) continue;
             clean.put(locator, position);
         }
         if (clean.isEmpty()) {

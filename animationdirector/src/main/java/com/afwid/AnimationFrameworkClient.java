@@ -50,7 +50,6 @@ import com.afwid.network.DebugStopAnimationC2SPayload;
 import com.afwid.network.StartAnimationS2CPayload;
 import com.afwid.network.StopAllAnimationsS2CPayload;
 import com.afwid.network.StopAnimationS2CPayload;
-import com.afwid.network.AfwPacket;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import java.util.ArrayList;
 import java.util.List;
@@ -76,10 +75,11 @@ import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.client.option.Perspective;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.registry.Registries;
+import net.minecraft.network.packet.CustomPayload;
 
 public class AnimationFrameworkClient
 implements ClientModInitializer {
-    private static final String KEY_CATEGORY = "key.categories.animationframework";
+    private static final KeyBinding.Category KEY_CATEGORY = KeyBinding.Category.create((Identifier)Identifier.of((String)"animationframework", (String)"main"));
     private static final KeyBinding SELECT_ACTOR_KEY = KeyBindingHelper.registerKeyBinding((KeyBinding)AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.select_actor"));
     private static final KeyBinding SELECT_SELF_KEY = KeyBindingHelper.registerKeyBinding((KeyBinding)AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.select_self"));
     private static final KeyBinding START_DEBUG_KEY = KeyBindingHelper.registerKeyBinding((KeyBinding)AnimationFrameworkClient.createUnboundDebugKey("key.animationframework.start_debug_animation"));
@@ -134,57 +134,41 @@ implements ClientModInitializer {
             AfwAnimationCameraZoom.reset();
             AnimationFrameworkClient.resetCameraPerspective(client);
         });
-        ClientPlayNetworking.registerGlobalReceiver(StartAnimationS2CPayload.ID, (client, handler, buf, responseSender) -> {
-            StartAnimationS2CPayload payload = StartAnimationS2CPayload.read(buf);
-            client.execute(() -> {
+        ClientPlayNetworking.registerGlobalReceiver(StartAnimationS2CPayload.ID, (payload, context) -> context.client().execute(() -> {
             AfwClientAnimationRuntime.queueStart(payload.animationId(), payload.instanceId(), payload.actorUuids(), payload.actorKeys(), payload.stages(), payload.startTick(), payload.speed(), payload.lockOrientation(), payload.lockedYaw(), payload.lockedHeadYaw(), payload.lockedPitch(), payload.cameraOrbitTarget());
+            MinecraftClient client = context.client();
             ClientPlayerEntity player = client.player;
             if (player != null && AnimationFrameworkClient.shouldShow(AfwDebugChatCategory.INFO)) {
                 String keysStr = payload.actorKeys().isEmpty() ? "none" : payload.actorKeys().toString();
                 player.sendMessage(AnimationFrameworkClient.tr("start_received", payload.animationId(), payload.actorUuids().size(), keysStr), false);
             }
-            });
-        });
-        ClientPlayNetworking.registerGlobalReceiver(StopAllAnimationsS2CPayload.ID, (client, handler, buf, responseSender) -> {
-            StopAllAnimationsS2CPayload payload = StopAllAnimationsS2CPayload.read(buf);
-            client.execute(() -> {
+        }));
+        ClientPlayNetworking.registerGlobalReceiver(StopAllAnimationsS2CPayload.ID, (payload, context) -> context.client().execute(() -> {
             AfwClientAnimationRuntime.queueStopAll(payload.stopTick());
+            MinecraftClient client = context.client();
             ClientPlayerEntity player = client.player;
             if (player != null && AnimationFrameworkClient.shouldShow(AfwDebugChatCategory.INFO)) {
                 player.sendMessage(AnimationFrameworkClient.tr("stop_all_received", new Object[0]), false);
             }
-            });
-        });
-        ClientPlayNetworking.registerGlobalReceiver(AdvanceAnimationStageS2CPayload.ID, (client, handler, buf, responseSender) -> {
-            AdvanceAnimationStageS2CPayload payload = AdvanceAnimationStageS2CPayload.read(buf);
-            client.execute(() -> AfwClientAnimationRuntime.queueStageAdvance(payload.instanceId(), payload.advanceTick(), payload.stageIndex()));
-        });
-        ClientPlayNetworking.registerGlobalReceiver(AnimationSpeedUpdateS2CPayload.ID, (client, handler, buf, responseSender) -> {
-            AnimationSpeedUpdateS2CPayload payload = AnimationSpeedUpdateS2CPayload.read(buf);
-            client.execute(() -> AfwClientAnimationRuntime.queueSpeedUpdate(payload.instanceId(), payload.speed()));
-        });
-        ClientPlayNetworking.registerGlobalReceiver(StopAnimationS2CPayload.ID, (client, handler, buf, responseSender) -> {
-            StopAnimationS2CPayload payload = StopAnimationS2CPayload.read(buf);
-            client.execute(() -> {
+        }));
+        ClientPlayNetworking.registerGlobalReceiver(AdvanceAnimationStageS2CPayload.ID, (payload, context) -> context.client().execute(() -> AfwClientAnimationRuntime.queueStageAdvance(payload.instanceId(), payload.advanceTick(), payload.stageIndex())));
+        ClientPlayNetworking.registerGlobalReceiver(AnimationSpeedUpdateS2CPayload.ID, (payload, context) -> context.client().execute(() -> AfwClientAnimationRuntime.queueSpeedUpdate(payload.instanceId(), payload.speed())));
+        ClientPlayNetworking.registerGlobalReceiver(StopAnimationS2CPayload.ID, (payload, context) -> context.client().execute(() -> {
             AfwClientAnimationRuntime.queueStop(payload.instanceId(), payload.stopTick());
+            MinecraftClient client = context.client();
             ClientPlayerEntity player = client.player;
             if (player != null && AnimationFrameworkClient.shouldShow(AfwDebugChatCategory.INFO)) {
                 player.sendMessage(AnimationFrameworkClient.tr("stop_instance_received", new Object[0]), false);
             }
-            });
-        });
+        }));
         ClientTickEvents.END_CLIENT_TICK.register(AnimationFrameworkClient::onClientTick);
     }
 
     public static void sendDebugChatPreference() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client != null && client.player != null && ClientPlayNetworking.canSend(DebugChatPreferenceC2SPayload.ID)) {
-            AnimationFrameworkClient.sendPacket(new DebugChatPreferenceC2SPayload(AfwClientConfig.get().debugChatMode().id()));
+            ClientPlayNetworking.send((CustomPayload)new DebugChatPreferenceC2SPayload(AfwClientConfig.get().debugChatMode().id()));
         }
-    }
-
-    private static void sendPacket(AfwPacket packet) {
-        ClientPlayNetworking.send(packet.id(), packet.toBuffer());
     }
 
     private static void onClientTick(MinecraftClient client) {
@@ -237,7 +221,7 @@ implements ClientModInitializer {
             return;
         }
         AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("stop_all_requested", new Object[0]));
-        AnimationFrameworkClient.sendPacket(new DebugStopAllAnimationsC2SPayload());
+        ClientPlayNetworking.send((CustomPayload)new DebugStopAllAnimationsC2SPayload());
     }
 
     private static void requestStopInstance(MinecraftClient client) {
@@ -259,7 +243,7 @@ implements ClientModInitializer {
             return;
         }
         AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("stop_instance_requested", new Object[0]));
-        AnimationFrameworkClient.sendPacket(new DebugStopAnimationC2SPayload(instanceToStop));
+        ClientPlayNetworking.send((CustomPayload)new DebugStopAnimationC2SPayload(instanceToStop));
     }
 
     private static void toggleTargetedActorSelection(MinecraftClient client) {
@@ -279,7 +263,7 @@ implements ClientModInitializer {
             return;
         }
         int id = target.getId();
-        Identifier typeId = Registries.ENTITY_TYPE.getId(target.getType());
+        Identifier typeId = Registries.ENTITY_TYPE.getId((Object)target.getType());
         UUID instId = AfwClientAnimationRuntime.findLatestActiveInstanceContaining(target.getUuid());
         if (instId != null) {
             if (SELECTED_INSTANCE_ID != null && SELECTED_INSTANCE_ID.equals(instId)) {
@@ -341,7 +325,7 @@ implements ClientModInitializer {
                 AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("server_cannot_receive_join", new Object[0]));
                 return;
             }
-            AnimationFrameworkClient.sendPacket(new DebugJoinAnimationC2SPayload(SELECTED_INSTANCE_ID, actorIds));
+            ClientPlayNetworking.send((CustomPayload)new DebugJoinAnimationC2SPayload(SELECTED_INSTANCE_ID, actorIds));
             AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("join_requested_instance_extras", SELECTED_INSTANCE_ID, actorIds.size()));
             SELECTED_INSTANCE_ID = null;
             SELECTED_ACTOR_IDS.clear();
@@ -358,11 +342,11 @@ implements ClientModInitializer {
         AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("start_requested_actor_count", actorIds.size()));
         int anchorId = -1;
         if (AfwClientConfig.get().anchorAtLastSelected() && actorIds.size() >= 2) {
-            anchorId = (Integer)actorIds.get(actorIds.size() - 1);
+            anchorId = (Integer)actorIds.getLast();
         }
         String behaviorId = AfwClientConfig.get().debugDamageBehavior().id();
         boolean ignoreAttackers = AfwClientConfig.get().debugIgnoreAttackers();
-        AnimationFrameworkClient.sendPacket(new DebugStartAnimationC2SPayload(actorIds, behaviorId, ignoreAttackers, anchorId));
+        ClientPlayNetworking.send((CustomPayload)new DebugStartAnimationC2SPayload(actorIds, behaviorId, ignoreAttackers, anchorId));
         SELECTED_ACTOR_IDS.clear();
     }
 
@@ -377,7 +361,7 @@ implements ClientModInitializer {
             return;
         }
         if (ClientPlayNetworking.canSend(DebugAdvanceStageC2SPayload.ID)) {
-            AnimationFrameworkClient.sendPacket(new DebugAdvanceStageC2SPayload(instanceToAdvance));
+            ClientPlayNetworking.send((CustomPayload)new DebugAdvanceStageC2SPayload(instanceToAdvance));
             AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("next_stage_requested_server", new Object[0]));
         } else {
             AfwClientAnimationRuntime.requestStageAdvance(instanceToAdvance);
@@ -399,7 +383,7 @@ implements ClientModInitializer {
             return;
         }
         if (ClientPlayNetworking.canSend(AdjustAnimationSpeedC2SPayload.ID)) {
-            AnimationFrameworkClient.sendPacket(new AdjustAnimationSpeedC2SPayload(targetInstance, multiplier));
+            ClientPlayNetworking.send((CustomPayload)new AdjustAnimationSpeedC2SPayload(targetInstance, multiplier));
             double percent = (multiplier - 1.0) * 100.0;
             String delta = (percent >= 0.0 ? "+" : "") + String.format(Locale.ROOT, "%.0f%%", percent);
             AnimationFrameworkClient.sendManualDebug((PlayerEntity)player, AnimationFrameworkClient.tr("speed_change_requested", delta));
@@ -417,7 +401,7 @@ implements ClientModInitializer {
         boolean canSend = ClientPlayNetworking.canSend(DebugStopAnimationC2SPayload.ID);
         for (UUID instanceId : completed) {
             if (canSend) {
-                AnimationFrameworkClient.sendPacket(new DebugStopAnimationC2SPayload(instanceId));
+                ClientPlayNetworking.send((CustomPayload)new DebugStopAnimationC2SPayload(instanceId));
                 continue;
             }
             if (player == null || !AnimationFrameworkClient.shouldShow(AfwDebugChatCategory.ERROR)) continue;
@@ -486,13 +470,7 @@ implements ClientModInitializer {
             if (anchorId == null) {
                 return;
             }
-            Entity anchor = null;
-            for (Entity candidate : client.world.getEntities()) {
-                if (anchorId.equals(candidate.getUuid())) {
-                    anchor = candidate;
-                    break;
-                }
-            }
+            Entity anchor = client.world.getEntity(anchorId);
             if (anchor == null) {
                 return;
             }
@@ -500,7 +478,7 @@ implements ClientModInitializer {
             if (dx * dx + (dy = player.getY() - anchor.getY()) * dy + (dz = player.getZ() - anchor.getZ()) * dz > 4.0E-4) {
                 player.setPos(anchor.getX(), anchor.getY(), anchor.getZ());
                 player.setVelocity(Vec3d.ZERO);
-                player.fallDistance = 0.0f;
+                player.fallDistance = 0.0;
             }
         }
     }
@@ -550,11 +528,12 @@ implements ClientModInitializer {
 
     private static Formatting chatColor(AfwDebugChatCategory category) {
         return switch (category) {
-            case ALWAYS -> Formatting.DARK_GRAY;
-            case SETUP -> Formatting.YELLOW;
-            case WARNING -> Formatting.LIGHT_PURPLE;
-            case ERROR -> Formatting.RED;
-            case INFO -> Formatting.WHITE;
+            default -> throw new MatchException(null, null);
+            case AfwDebugChatCategory.ALWAYS -> Formatting.DARK_GRAY;
+            case AfwDebugChatCategory.SETUP -> Formatting.YELLOW;
+            case AfwDebugChatCategory.WARNING -> Formatting.LIGHT_PURPLE;
+            case AfwDebugChatCategory.ERROR -> Formatting.RED;
+            case AfwDebugChatCategory.INFO -> Formatting.WHITE;
         };
     }
 }

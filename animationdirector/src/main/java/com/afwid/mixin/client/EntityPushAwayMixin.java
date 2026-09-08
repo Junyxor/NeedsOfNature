@@ -24,7 +24,7 @@ public abstract class EntityPushAwayMixin {
         if (other == null) {
             return;
         }
-        Entity self = (Entity)(Object)this;
+        Entity self = (Entity)this;
         if (AfwClientAnimationRuntime.isActorPendingOrActive(self.getUuid()) || AfwClientAnimationRuntime.isActorPendingOrActive(other.getUuid())) {
             ci.cancel();
         }

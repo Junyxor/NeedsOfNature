@@ -28,7 +28,7 @@ public abstract class MinecraftClientMixin {
         if (!(screen instanceof HandledScreen)) {
             return;
         }
-        MinecraftClient client = (MinecraftClient)(Object)this;
+        MinecraftClient client = (MinecraftClient)this;
         if (client.player == null) {
             return;
         }

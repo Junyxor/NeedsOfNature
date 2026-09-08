@@ -26,7 +26,7 @@
 package com.afwid.mixin.client;
 
 import com.afwid.client.runtime.AfwClientAnimationRuntime;
-import net.minecraft.recipe.Recipe;
+import net.minecraft.recipe.NetworkRecipeId;
 import net.minecraft.util.Hand;
 import net.minecraft.util.ActionResult;
 import net.minecraft.entity.Entity;
@@ -63,49 +63,49 @@ public abstract class ClientPlayerInteractionManagerMixin {
     @Inject(method={"breakBlock"}, at={@At(value="HEAD")}, cancellable=true)
     private void afw$blockBreak(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
         if (ClientPlayerInteractionManagerMixin.shouldBlock()) {
-            cir.setReturnValue(false);
+            cir.setReturnValue((Object)false);
         }
     }
 
     @Inject(method={"attackBlock"}, at={@At(value="HEAD")}, cancellable=true)
     private void afw$blockAttack(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
         if (ClientPlayerInteractionManagerMixin.shouldBlock()) {
-            cir.setReturnValue(false);
+            cir.setReturnValue((Object)false);
         }
     }
 
     @Inject(method={"updateBlockBreakingProgress"}, at={@At(value="HEAD")}, cancellable=true)
     private void afw$blockBreakProgress(BlockPos pos, Direction direction, CallbackInfoReturnable<Boolean> cir) {
         if (ClientPlayerInteractionManagerMixin.shouldBlock()) {
-            cir.setReturnValue(false);
+            cir.setReturnValue((Object)false);
         }
     }
 
     @Inject(method={"interactBlock"}, at={@At(value="HEAD")}, cancellable=true)
     private void afw$interactBlock(ClientPlayerEntity player, Hand hand, BlockHitResult hit, CallbackInfoReturnable<ActionResult> cir) {
         if (ClientPlayerInteractionManagerMixin.shouldBlock()) {
-            cir.setReturnValue(ActionResult.FAIL);
+            cir.setReturnValue((Object)ActionResult.FAIL);
         }
     }
 
     @Inject(method={"interactItem"}, at={@At(value="HEAD")}, cancellable=true)
     private void afw$interactItem(PlayerEntity player, Hand hand, CallbackInfoReturnable<ActionResult> cir) {
         if (ClientPlayerInteractionManagerMixin.shouldBlock()) {
-            cir.setReturnValue(ActionResult.FAIL);
+            cir.setReturnValue((Object)ActionResult.FAIL);
         }
     }
 
     @Inject(method={"interactEntity"}, at={@At(value="HEAD")}, cancellable=true)
     private void afw$interactEntity(PlayerEntity player, Entity entity, Hand hand, CallbackInfoReturnable<ActionResult> cir) {
         if (ClientPlayerInteractionManagerMixin.shouldBlock()) {
-            cir.setReturnValue(ActionResult.FAIL);
+            cir.setReturnValue((Object)ActionResult.FAIL);
         }
     }
 
     @Inject(method={"interactEntityAtLocation"}, at={@At(value="HEAD")}, cancellable=true)
     private void afw$interactEntityAt(PlayerEntity player, Entity entity, EntityHitResult hit, Hand hand, CallbackInfoReturnable<ActionResult> cir) {
         if (ClientPlayerInteractionManagerMixin.shouldBlock()) {
-            cir.setReturnValue(ActionResult.FAIL);
+            cir.setReturnValue((Object)ActionResult.FAIL);
         }
     }
 
@@ -124,7 +124,7 @@ public abstract class ClientPlayerInteractionManagerMixin {
     }
 
     @Inject(method={"clickRecipe"}, at={@At(value="HEAD")}, cancellable=true)
-    private void afw$clickRecipe(int syncId, Recipe<?> recipe, boolean craftAll, CallbackInfo ci) {
+    private void afw$clickRecipe(int syncId, NetworkRecipeId recipeId, boolean craftAll, CallbackInfo ci) {
         if (ClientPlayerInteractionManagerMixin.shouldBlock()) {
             ci.cancel();
         }
@@ -158,5 +158,25 @@ public abstract class ClientPlayerInteractionManagerMixin {
         }
     }
 
+    @Inject(method={"pickItemFromBlock"}, at={@At(value="HEAD")}, cancellable=true)
+    private void afw$pickItemFromBlock(BlockPos pos, boolean includeData, CallbackInfo ci) {
+        if (ClientPlayerInteractionManagerMixin.shouldBlock()) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method={"pickItemFromEntity"}, at={@At(value="HEAD")}, cancellable=true)
+    private void afw$pickItemFromEntity(Entity entity, boolean includeData, CallbackInfo ci) {
+        if (ClientPlayerInteractionManagerMixin.shouldBlock()) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method={"slotChangedState"}, at={@At(value="HEAD")}, cancellable=true)
+    private void afw$slotChangedState(int syncId, int revision, boolean newState, CallbackInfo ci) {
+        if (ClientPlayerInteractionManagerMixin.shouldBlock()) {
+            ci.cancel();
+        }
+    }
 }
 

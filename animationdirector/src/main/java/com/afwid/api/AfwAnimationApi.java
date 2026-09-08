@@ -19,7 +19,6 @@ import com.afwid.api.AfwDamageBehavior;
 import com.afwid.data.AfwAnimationDefinitions;
 import com.afwid.network.AnimationStageInfo;
 import com.afwid.network.StopAllAnimationsS2CPayload;
-import com.afwid.network.AfwServerNetworking;
 import com.afwid.server.AfwServerAnimationController;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -29,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -36,6 +36,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.registry.Registries;
+import net.minecraft.network.packet.CustomPayload;
 import org.jetbrains.annotations.Nullable;
 
 public final class AfwAnimationApi {
@@ -107,8 +108,7 @@ public final class AfwAnimationApi {
         actorList.addAll(actors);
         actorList.sort(Comparator.comparingInt(Entity::getId));
         Set<String> safeTags = safeOptions.requiredAnimationTags() == null ? Set.of() : safeOptions.requiredAnimationTags();
-        Set<Identifier> excluded = safeOptions.excludedAnimationIds() == null
-                ? Set.of() : safeOptions.excludedAnimationIds();
+        Set<Object> excluded = safeOptions.excludedAnimationIds() == null ? Set.of() : safeOptions.excludedAnimationIds();
         UUID positionAnchorUuid = null;
         Entity positionAnchor = safeOptions.positionAnchor();
         if (positionAnchor != null && positionAnchor.getEntityWorld() == world) {
@@ -160,7 +160,7 @@ public final class AfwAnimationApi {
         } else {
             double roll = world.getRandom().nextDouble() * totalWeight;
             double running = 0.0;
-            picked = definitions.get(definitions.size() - 1);
+            picked = definitions.getLast();
             for (AfwAnimationDefinitions.Definition definition : definitions) {
                 if (definition == null || !(roll < (running += AfwAnimationApi.sanitizeWeight(definition.weight())))) continue;
                 picked = definition;
@@ -261,7 +261,7 @@ public final class AfwAnimationApi {
         StopAllAnimationsS2CPayload payload = new StopAllAnimationsS2CPayload(stopTick);
         for (ServerPlayerEntity player : Objects.requireNonNull(world.getServer()).getPlayerManager().getPlayerList()) {
             if (player.getEntityWorld() != world) continue;
-            AfwServerNetworking.send(player, payload);
+            ServerPlayNetworking.send((ServerPlayerEntity)player, (CustomPayload)payload);
         }
         AfwServerAnimationController.clearAllInstancesInWorld(world);
     }

@@ -25,7 +25,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(value={WorldRenderer.class})
 public class WorldRendererFirstPersonActorMixin {
-    @Redirect(method={"render"}, at=@At(value="INVOKE", target="Lnet/minecraft/client/render/Camera;isThirdPerson()Z"))
+    @Redirect(method={"fillEntityRenderStates"}, at=@At(value="INVOKE", target="Lnet/minecraft/Camera;isThirdPerson()Z"))
     private boolean afw$keepFocusedActorRenderableInFirstPerson(Camera camera) {
         boolean thirdPerson = camera.isThirdPerson();
         if (thirdPerson) {

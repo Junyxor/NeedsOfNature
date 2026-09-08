@@ -26,16 +26,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value={MobEntity.class})
 public abstract class MobEntityIgnoreAttackersMixin {
     @Inject(method={"tryAttack"}, at={@At(value="HEAD")}, cancellable=true)
-    private void afw$blockDirectAttackOnIgnoredActors(Entity target, CallbackInfoReturnable<Boolean> cir) {
+    private void afw$blockDirectAttackOnIgnoredActors(ServerWorld world, Entity target, CallbackInfoReturnable<Boolean> cir) {
         if (!(target instanceof LivingEntity)) {
             return;
         }
         LivingEntity livingTarget = (LivingEntity)target;
-        if (!(livingTarget.getEntityWorld() instanceof ServerWorld world)
-                || !AfwServerAnimationController.shouldIgnoreAttackers(world, livingTarget)) {
+        if (!AfwServerAnimationController.shouldIgnoreAttackers(world, livingTarget)) {
             return;
         }
-        cir.setReturnValue(false);
+        cir.setReturnValue((Object)false);
     }
 }
 

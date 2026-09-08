@@ -19,14 +19,14 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.util.Identifier;
 import net.minecraft.client.MinecraftClient;
-import software.bernie.geckolib.GeckoLib;
-import software.bernie.geckolib.cache.GeckoLibCache;
+import software.bernie.geckolib.GeckoLibConstants;
+import software.bernie.geckolib.cache.GeckoLibResources;
 import software.bernie.geckolib.loading.object.BakedAnimations;
 
 public final class AfwGeckoResourceResolver {
     private static final String SAFETY_FALLBACK_ANIMATION_KEY = "animation";
-    private static final Identifier DEFAULT_MISSING_MODEL = new Identifier((String)"animationframework", (String)"geo/entity/missingmodel.geo.json");
-    private static final Identifier DEFAULT_MISSING_TEXTURE = new Identifier((String)"animationframework", (String)"textures/missingmodel.png");
+    private static final Identifier DEFAULT_MISSING_MODEL = Identifier.of((String)"animationframework", (String)"entity/missingmodel");
+    private static final Identifier DEFAULT_MISSING_TEXTURE = Identifier.of((String)"animationframework", (String)"textures/missingmodel.png");
     private static final Set<String> LOGGED_MISSING_TYPES = Collections.newSetFromMap(new ConcurrentHashMap());
     private static final Set<String> LOGGED_MISSING_ANIMATIONS = Collections.newSetFromMap(new ConcurrentHashMap());
     private static final Set<String> LOGGED_RESOURCE_LOOKUP_ERRORS = Collections.newSetFromMap(new ConcurrentHashMap());
@@ -38,14 +38,14 @@ public final class AfwGeckoResourceResolver {
         if (afwAnimationId == null) {
             return null;
         }
-        return new Identifier((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), null));
+        return Identifier.of((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), null));
     }
 
     public static Identifier toAnimationResource(Identifier afwAnimationId, String actorKey) {
         if (afwAnimationId == null) {
             return null;
         }
-        return new Identifier((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), actorKey));
+        return Identifier.of((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), actorKey));
     }
 
     public static Identifier resolveAnimationResource(Identifier afwAnimationId, String actorKey, Identifier entityTypeId) {
@@ -58,23 +58,23 @@ public final class AfwGeckoResourceResolver {
             return null;
         }
         Identifier actorCandidate = null;
-        if (actorKey != null && !actorKey.isBlank() && AfwGeckoResourceResolver.hasBakedAnimation(actorCandidate = new Identifier((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), actorKey)))) {
+        if (actorKey != null && !actorKey.isBlank() && AfwGeckoResourceResolver.hasBakedAnimation(actorCandidate = Identifier.of((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), actorKey)))) {
             return actorCandidate;
         }
         Identifier typeCandidate = null;
         if (entityTypeId != null) {
             Identifier namespacedCandidate;
             String typeKey = entityTypeId.getPath();
-            typeCandidate = new Identifier((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), typeKey));
+            typeCandidate = Identifier.of((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), typeKey));
             if (AfwGeckoResourceResolver.hasBakedAnimation(typeCandidate)) {
                 return typeCandidate;
             }
             String namespacedKey = entityTypeId.getNamespace() + "_" + entityTypeId.getPath();
-            if (!namespacedKey.equals(typeKey) && AfwGeckoResourceResolver.hasBakedAnimation(namespacedCandidate = new Identifier((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), namespacedKey)))) {
+            if (!namespacedKey.equals(typeKey) && AfwGeckoResourceResolver.hasBakedAnimation(namespacedCandidate = Identifier.of((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), namespacedKey)))) {
                 return namespacedCandidate;
             }
         }
-        Identifier base = new Identifier((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), null));
+        Identifier base = Identifier.of((String)afwAnimationId.getNamespace(), (String)AfwGeckoResourceResolver.nestedAnimationPath(afwAnimationId.getPath(), null));
         boolean baseBaked = AfwGeckoResourceResolver.hasBakedAnimation(base);
         if (warnMissing && !baseBaked && (actorCandidate != null || typeCandidate != null) && AfwClientConfig.get().allowsDebugChat(AfwDebugChatCategory.SETUP) && LOGGED_MISSING_ANIMATIONS.add(logKey = String.valueOf(afwAnimationId) + "|actor=" + actorKey + "|type=" + String.valueOf(entityTypeId))) {
             String message = AnimationFramework.formatLogTemplate("[AFW] Missing per-actor animation for {} (actorKey={}, typeId={}); no base animation found.", afwAnimationId, actorKey, entityTypeId);
@@ -86,14 +86,14 @@ public final class AfwGeckoResourceResolver {
     }
 
     public static boolean hasBakedAnimation(Identifier animationResource) {
-        return animationResource != null && GeckoLibCache.getBakedAnimations().containsKey(animationResource);
+        return GeckoLibResources.getBakedAnimations().cache().containsKey(animationResource);
     }
 
     public static String resolveAnimationKey(Identifier animationResource) {
         if (animationResource == null) {
             return SAFETY_FALLBACK_ANIMATION_KEY;
         }
-        BakedAnimations baked = GeckoLibCache.getBakedAnimations().get(animationResource);
+        BakedAnimations baked = (BakedAnimations)GeckoLibResources.getBakedAnimations().cache().get(animationResource);
         if (baked == null || baked.animations().isEmpty()) {
             return SAFETY_FALLBACK_ANIMATION_KEY;
         }
@@ -106,21 +106,15 @@ public final class AfwGeckoResourceResolver {
             return AfwGeckoResourceResolver.missingWithLog(null);
         }
         String entityPath = entityTypeId.getPath();
-        Identifier primaryModel = new Identifier((String)"animationframework", (String)("entity/" + entityPath));
-        Identifier secondaryModel = new Identifier((String)"animationframework", (String)entityPath);
-        Identifier resolvedModel = AfwGeckoResourceResolver.resolveGeoModelResource(primaryModel);
-        boolean hasModel = resolvedModel != null;
-        if (!hasModel) {
-            resolvedModel = AfwGeckoResourceResolver.resolveGeoModelResource(secondaryModel);
-            hasModel = resolvedModel != null;
+        Identifier primaryModel = Identifier.of((String)"animationframework", (String)("entity/" + entityPath));
+        Identifier secondaryModel = Identifier.of((String)"animationframework", (String)entityPath);
+        Identifier resolvedModel = primaryModel;
+        boolean hasModel = AfwGeckoResourceResolver.hasGeoModel(primaryModel);
+        if (!hasModel && AfwGeckoResourceResolver.hasGeoModel(secondaryModel)) {
+            resolvedModel = secondaryModel;
+            hasModel = true;
         }
-        if (resolvedModel == null) {
-            // Keep the logical ID until gender/variant render overrides have run.
-            // The default pack intentionally supplies player.f/player.m but no
-            // unsuffixed player model.
-            resolvedModel = primaryModel;
-        }
-        Identifier resolvedTexture = AfwGeckoResourceResolver.resourceExists(derivedTexture = new Identifier((String)entityTypeId.getNamespace(), (String)("textures/entity/" + entityPath + "/" + entityPath + ".png"))) ? derivedTexture : DEFAULT_MISSING_TEXTURE;
+        Identifier resolvedTexture = AfwGeckoResourceResolver.resourceExists(derivedTexture = Identifier.of((String)entityTypeId.getNamespace(), (String)("textures/entity/" + entityPath + "/" + entityPath + ".png"))) ? derivedTexture : DEFAULT_MISSING_TEXTURE;
         return new ModelAndTexture(resolvedModel, resolvedTexture, !hasModel);
     }
 
@@ -129,34 +123,17 @@ public final class AfwGeckoResourceResolver {
     }
 
     public static boolean hasGeoModel(Identifier modelId) {
-        return AfwGeckoResourceResolver.resolveGeoModelResource(modelId) != null;
-    }
-
-    /** Converts GeckoLib 5 logical model IDs to the complete paths required by GeckoLib 4. */
-    public static Identifier resolveGeoModelResource(Identifier modelId) {
-        if (modelId == null) {
-            return null;
+        if (GeckoLibResources.getBakedModels().cache().containsKey(modelId)) {
+            return true;
         }
-        if (GeckoLibCache.getBakedModels().containsKey(modelId)
-                || AfwGeckoResourceResolver.resourceExists(modelId)) {
-            return modelId;
-        }
-        String path = modelId.getPath();
-        if (AfwGeckoResourceResolver.isCompleteModelPath(path)) {
-            return null;
-        }
-        Identifier legacyPath = AfwGeckoResourceResolver.geoModelPath(modelId);
-        if (GeckoLibCache.getBakedModels().containsKey(legacyPath)
-                || AfwGeckoResourceResolver.resourceExists(legacyPath)) {
-            return legacyPath;
-        }
-        return null;
+        Identifier geoPath = AfwGeckoResourceResolver.geoModelPath(modelId);
+        return AfwGeckoResourceResolver.resourceExists(geoPath);
     }
 
     private static String nestedAnimationPath(String animationPath, String suffix) {
         String folder = AfwGeckoResourceResolver.animationFolderPath(animationPath);
         String file = suffix == null || suffix.isBlank() ? animationPath : animationPath + "_" + suffix;
-        return "animations/afw/" + folder + "/" + file + ".animation.json";
+        return "afw/" + folder + "/" + file;
     }
 
     private static String animationFolderPath(String animationPath) {
@@ -176,16 +153,7 @@ public final class AfwGeckoResourceResolver {
     }
 
     private static Identifier geoModelPath(Identifier modelId) {
-        String path = modelId.getPath();
-        if (AfwGeckoResourceResolver.isCompleteModelPath(path)) {
-            return modelId;
-        }
-        return new Identifier((String)modelId.getNamespace(), (String)("geo/" + path + ".geo.json"));
-    }
-
-    private static boolean isCompleteModelPath(String path) {
-        return path != null && path.endsWith(".geo.json")
-                && path.startsWith("geo/");
+        return Identifier.of((String)modelId.getNamespace(), (String)("geckolib/models/" + modelId.getPath() + ".geo.json"));
     }
 
     private static boolean resourceExists(Identifier resourceId) {
@@ -206,7 +174,7 @@ public final class AfwGeckoResourceResolver {
 
     private static ModelAndTexture missingWithLog(Identifier typeId) {
         if (typeId != null && LOGGED_MISSING_TYPES.add(typeId.toString())) {
-            GeckoLib.LOGGER.info("[AFW] No specific gecko model for entity type {}, using missingmodel.", (Object)typeId);
+            GeckoLibConstants.LOGGER.info("[AFW] No specific gecko model for entity type {}, using missingmodel.", (Object)typeId);
         }
         return new ModelAndTexture(DEFAULT_MISSING_MODEL, DEFAULT_MISSING_TEXTURE, true);
     }

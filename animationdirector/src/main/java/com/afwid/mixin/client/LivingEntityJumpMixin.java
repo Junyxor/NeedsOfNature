@@ -24,7 +24,7 @@ public abstract class LivingEntityJumpMixin {
     @Inject(method={"jump"}, at={@At(value="HEAD")}, cancellable=true)
     private void afw$blockJumpWhileAnimating(CallbackInfo ci) {
         ClientPlayerEntity player;
-        LivingEntity self = (LivingEntity)(Object)this;
+        LivingEntity self = (LivingEntity)this;
         if (self instanceof ClientPlayerEntity && AfwClientAnimationRuntime.isActorPendingOrActive((player = (ClientPlayerEntity)self).getUuid())) {
             ci.cancel();
         }

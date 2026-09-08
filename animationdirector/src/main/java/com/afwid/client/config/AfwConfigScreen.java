@@ -79,7 +79,7 @@ extends Screen {
         int bottomArea = 40;
         int listHeight = Math.max(0, this.height - listTop - bottomArea);
         SettingsList settingsList = new SettingsList(this.client, this.width, listHeight, listTop);
-        this.addDrawableChild(settingsList);
+        this.addDrawableChild((Element)settingsList);
         int resetW = 20;
         this.toggleButton = ButtonWidget.builder((Text)Text.empty(), button -> {
             this.forceVanillaTextures = !this.forceVanillaTextures;
@@ -125,7 +125,7 @@ extends Screen {
         settingsList.addEntryRow(SettingsList.RowEntry.labeledButton(this.textRenderer, (Text)Text.translatable((String)"config.animationframework.debug_menu"), (ClickableWidget)debugMenuButton, null));
         int centerX = this.width / 2;
         ButtonWidget doneButton = ButtonWidget.builder((Text)Text.translatable((String)"gui.done"), button -> this.closeWithSave()).dimensions(centerX - 100, this.height - 28, 200, 20).build();
-        this.addDrawableChild(doneButton);
+        this.addDrawableChild((Element)doneButton);
         this.updateResetButtons();
     }
 
@@ -188,10 +188,11 @@ extends Screen {
             return DEFAULT_DEBUG_CHAT_MODE;
         }
         return switch (current) {
-            case ALL -> AfwDebugChatMode.SETUP_WARNINGS_ERRORS;
-            case SETUP_WARNINGS_ERRORS -> AfwDebugChatMode.SETUP_ERRORS;
-            case SETUP_ERRORS -> AfwDebugChatMode.ERRORS_ONLY;
-            case ERRORS_ONLY -> AfwDebugChatMode.ALL;
+            default -> throw new MatchException(null, null);
+            case AfwDebugChatMode.ALL -> AfwDebugChatMode.SETUP_WARNINGS_ERRORS;
+            case AfwDebugChatMode.SETUP_WARNINGS_ERRORS -> AfwDebugChatMode.SETUP_ERRORS;
+            case AfwDebugChatMode.SETUP_ERRORS -> AfwDebugChatMode.ERRORS_ONLY;
+            case AfwDebugChatMode.ERRORS_ONLY -> AfwDebugChatMode.ALL;
         };
     }
 
@@ -200,21 +201,22 @@ extends Screen {
             return AfwDamageBehavior.STOP_ON_DAMAGE;
         }
         return switch (current) {
-            case STOP_ON_DAMAGE -> AfwDamageBehavior.IGNORE_DAMAGE;
-            case IGNORE_DAMAGE -> AfwDamageBehavior.BLOCK_DAMAGE;
-            case BLOCK_DAMAGE -> AfwDamageBehavior.STOP_ON_DAMAGE;
+            default -> throw new MatchException(null, null);
+            case AfwDamageBehavior.STOP_ON_DAMAGE -> AfwDamageBehavior.IGNORE_DAMAGE;
+            case AfwDamageBehavior.IGNORE_DAMAGE -> AfwDamageBehavior.BLOCK_DAMAGE;
+            case AfwDamageBehavior.BLOCK_DAMAGE -> AfwDamageBehavior.STOP_ON_DAMAGE;
         };
     }
 
     private static final class SettingsList
-    extends ElementListWidget<SettingsList.RowEntry> {
+    extends ElementListWidget<RowEntry> {
         private SettingsList(MinecraftClient client, int width, int height, int top) {
-            super(client, width, top + height, top, top + height, 24);
+            super(client, width, height, top, 24);
             this.centerListVertically = false;
         }
 
         private void addEntryRow(RowEntry entry) {
-            super.addEntry(entry);
+            super.addEntry((EntryListWidget.Entry)entry);
         }
 
         public int getRowWidth() {
@@ -222,7 +224,7 @@ extends Screen {
         }
 
         public int getRowLeft() {
-            return (this.width - this.getRowWidth()) / 2;
+            return (this.getWidth() - this.getRowWidth()) / 2;
         }
 
         private static final class RowEntry
@@ -249,9 +251,10 @@ extends Screen {
                 return new RowEntry(textRenderer, label, button, reset);
             }
 
-            public void render(DrawContext context, int index, int rowY, int rowX,
-                               int rowWidth, int rowHeight, int mouseX, int mouseY,
-                               boolean hovered, float delta) {
+            public void render(DrawContext context, int mouseX, int mouseY, boolean hovered, float delta) {
+                int rowX = this.getContentX();
+                int rowY = this.getContentY();
+                int rowWidth = this.getContentWidth();
                 int widgetY = rowY + 2;
                 int resetW = this.reset == null ? 0 : this.reset.getWidth();
                 int buttonW = this.primary == null ? 0 : this.primary.getWidth();
@@ -321,7 +324,7 @@ extends Screen {
             int bottomArea = 40;
             int listHeight = Math.max(0, this.height - listTop - bottomArea);
             SettingsList settingsList = new SettingsList(this.client, this.width, listHeight, listTop);
-            this.addDrawableChild(settingsList);
+            this.addDrawableChild((Element)settingsList);
             int resetW = 20;
             this.debugChatButton = ButtonWidget.builder((Text)Text.empty(), button -> {
                 this.debugChatMode = AfwConfigScreen.nextDebugChatMode(this.debugChatMode);
@@ -373,7 +376,7 @@ extends Screen {
             settingsList.addEntryRow(SettingsList.RowEntry.labeledButton(this.textRenderer, (Text)Text.translatable((String)"config.animationframework.debug_anchor_mode"), (ClickableWidget)this.anchorModeButton, (ClickableWidget)this.resetAnchorModeButton));
             int centerX = this.width / 2;
             ButtonWidget doneButton = ButtonWidget.builder((Text)Text.translatable((String)"gui.done"), button -> this.closeWithSave()).dimensions(centerX - 100, this.height - 28, 200, 20).build();
-            this.addDrawableChild(doneButton);
+            this.addDrawableChild((Element)doneButton);
             this.updateResetButtons();
         }
 
@@ -423,9 +426,10 @@ extends Screen {
         private void updateDebugDamageLabel() {
             if (this.debugDamageButton != null) {
                 MutableText label = switch (this.debugDamageBehavior) {
-                    case STOP_ON_DAMAGE -> Text.translatable((String)"config.animationframework.debug_damage_behavior.stop_on_damage");
-                    case IGNORE_DAMAGE -> Text.translatable((String)"config.animationframework.debug_damage_behavior.ignore_damage");
-                    case BLOCK_DAMAGE -> Text.translatable((String)"config.animationframework.debug_damage_behavior.block_damage");
+                    default -> throw new MatchException(null, null);
+                    case AfwDamageBehavior.STOP_ON_DAMAGE -> Text.translatable((String)"config.animationframework.debug_damage_behavior.stop_on_damage");
+                    case AfwDamageBehavior.IGNORE_DAMAGE -> Text.translatable((String)"config.animationframework.debug_damage_behavior.ignore_damage");
+                    case AfwDamageBehavior.BLOCK_DAMAGE -> Text.translatable((String)"config.animationframework.debug_damage_behavior.block_damage");
                 };
                 this.debugDamageButton.setMessage((Text)label);
             }

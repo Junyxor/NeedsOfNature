@@ -63,7 +63,7 @@ import com.afwid.network.AnimationSpeedUpdateS2CPayload;
 import com.afwid.network.AnimationStageInfo;
 import com.afwid.network.StartAnimationS2CPayload;
 import com.afwid.network.StopAnimationS2CPayload;
-import com.afwid.network.AfwServerNetworking;
+import java.lang.runtime.SwitchBootstraps;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,6 +84,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
@@ -120,6 +121,7 @@ import net.minecraft.registry.tag.TagKey;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryKeys;
 import net.minecraft.entity.damage.DamageTypes;
+import net.minecraft.network.packet.CustomPayload;
 import org.jetbrains.annotations.Nullable;
 
 public final class AfwServerAnimationController {
@@ -143,7 +145,7 @@ public final class AfwServerAnimationController {
     private static final double PLAYER_NUDGE_STRENGTH = 0.08;
     private static final double PLAYER_NUDGE_EPSILON = 1.0E-6;
     private static final int RECENT_NO_RESTORE_TRANSITION_TICKS = 20;
-    private static final Identifier BEDS_BLOCK_TAG_ID = new Identifier((String)"minecraft", (String)"beds");
+    private static final Identifier BEDS_BLOCK_TAG_ID = Identifier.of((String)"minecraft", (String)"beds");
     private static final Map<RegistryKey<World>, Map<UUID, Long>> IN_WALL_GRACE_BY_WORLD = new HashMap<RegistryKey<World>, Map<UUID, Long>>();
     private static final Map<RegistryKey<World>, Map<UUID, RecentNoRestoreTransition>> RECENT_NO_RESTORE_TRANSITIONS_BY_WORLD = new HashMap<RegistryKey<World>, Map<UUID, RecentNoRestoreTransition>>();
     private static final String AFW_NOAI_TAG = "afw_noai";
@@ -199,7 +201,7 @@ public final class AfwServerAnimationController {
             if (player == null) {
                 return;
             }
-            ServerWorld patt0$temp = (ServerWorld)player.getWorld();
+            ServerWorld patt0$temp = player.getEntityWorld();
             if (!(patt0$temp instanceof ServerWorld)) {
                 return;
             }
@@ -298,7 +300,7 @@ public final class AfwServerAnimationController {
         if (player == null) {
             return;
         }
-        ServerWorld class_32182 = (ServerWorld)player.getWorld();
+        ServerWorld class_32182 = player.getEntityWorld();
         if (!(class_32182 instanceof ServerWorld)) {
             return;
         }
@@ -346,9 +348,7 @@ public final class AfwServerAnimationController {
             AfwServerAnimationController.sendOrLogDebug(world, requester, AfwDebugChatCategory.WARNING, AfwServerAnimationController.dbg("queue_enqueue_failed_exactly_one_player", new Object[0]), forceChat);
             return false;
         }
-        PlayerQueueState queue = PLAYER_QUEUES_BY_WORLD
-                .computeIfAbsent(world.getRegistryKey(), k -> new HashMap<UUID, PlayerQueueState>())
-                .computeIfAbsent(playerUuid, PlayerQueueState::new);
+        PlayerQueueState queue = PLAYER_QUEUES_BY_WORLD.computeIfAbsent((RegistryKey<World>)world.getRegistryKey(), k -> new HashMap()).computeIfAbsent(playerUuid, PlayerQueueState::new);
         if (queue.entries.size() >= 8) {
             AfwServerAnimationController.sendOrLogDebug(world, requester, AfwDebugChatCategory.WARNING, AfwServerAnimationController.dbg("queue_enqueue_failed_full", 8), forceChat);
             return false;
@@ -435,7 +435,7 @@ public final class AfwServerAnimationController {
         if (candidates == null || candidates.isEmpty()) {
             return null;
         }
-        int bestSpecificity = candidates.get(0).specificity();
+        int bestSpecificity = candidates.getFirst().specificity();
         ArrayList<EligibleDefinition> eligible = new ArrayList<EligibleDefinition>();
         List<UUID> actorUuids = actorsSorted.stream().map(Entity::getUuid).toList();
         for (AfwAnimationDefinitions.Definition definition : candidates) {
@@ -488,7 +488,7 @@ public final class AfwServerAnimationController {
             if (eligible == null || eligible.definition() == null || !(roll < (running += AfwServerAnimationController.sanitizeWeight(eligible.definition().weight())))) continue;
             return eligible;
         }
-        return definitions.get(definitions.size() - 1);
+        return definitions.getLast();
     }
 
     private static double sanitizeWeight(double raw) {
@@ -543,8 +543,8 @@ public final class AfwServerAnimationController {
         Set<ServerPlayerEntity> targets = AfwServerAnimationController.computeInstanceBroadcastTargets(world, null, inst);
         AfwServerAnimationController.rememberInstanceSubscribers(inst, targets);
         for (ServerPlayerEntity p : targets) {
-            AfwServerNetworking.send(p, payload);
-            AfwServerNetworking.send(p, new AnimationSpeedUpdateS2CPayload(instanceId, inst.speed));
+            ServerPlayNetworking.send((ServerPlayerEntity)p, (CustomPayload)payload);
+            ServerPlayNetworking.send((ServerPlayerEntity)p, (CustomPayload)new AnimationSpeedUpdateS2CPayload(instanceId, inst.speed));
         }
         ((AfwAnimationEvents.StageAdvance)AfwAnimationEvents.STAGE_ADVANCE.invoker()).onStageAdvance(world, instanceId, inst.animationId, List.copyOf(inst.actorUuids), AfwServerAnimationController.sanitizeActorKeys(inst.actorKeys, inst.actorUuids.size()), advanceTick);
         return true;
@@ -593,7 +593,7 @@ public final class AfwServerAnimationController {
         Set<ServerPlayerEntity> targets = AfwServerAnimationController.computeInstanceBroadcastTargets(world, requester, inst);
         AfwServerAnimationController.rememberInstanceSubscribers(inst, targets);
         for (ServerPlayerEntity p : targets) {
-            AfwServerNetworking.send(p, payload);
+            ServerPlayNetworking.send((ServerPlayerEntity)p, (CustomPayload)payload);
         }
         if (notify) {
             AfwServerAnimationController.sendOrLogDebug(world, requester, AfwDebugChatCategory.ALWAYS, AfwServerAnimationController.dbg("speed_set", String.format(Locale.ROOT, "%.2fx", newSpeed)), true);
@@ -617,7 +617,7 @@ public final class AfwServerAnimationController {
         StopAnimationS2CPayload payload = new StopAnimationS2CPayload(instanceId, stopTick);
         Set<ServerPlayerEntity> targets = AfwServerAnimationController.computeInstanceBroadcastTargets(world, null, inst);
         for (ServerPlayerEntity p : targets) {
-            AfwServerNetworking.send(p, payload);
+            ServerPlayNetworking.send((ServerPlayerEntity)p, (CustomPayload)payload);
         }
         AfwServerAnimationController.fireStopEvent(instanceId, inst);
         if (restoreTransforms) {
@@ -744,7 +744,7 @@ public final class AfwServerAnimationController {
     }
 
     public static void stopInstanceAndBroadcast(ServerPlayerEntity requester, UUID instanceId) {
-        ServerWorld class_32182 = (ServerWorld)requester.getWorld();
+        ServerWorld class_32182 = requester.getEntityWorld();
         if (!(class_32182 instanceof ServerWorld)) {
             return;
         }
@@ -763,7 +763,7 @@ public final class AfwServerAnimationController {
         StopAnimationS2CPayload payload = new StopAnimationS2CPayload(instanceId, stopTick);
         Set<ServerPlayerEntity> targets = AfwServerAnimationController.computeInstanceBroadcastTargets(requesterWorld, requester, inst);
         for (ServerPlayerEntity p : targets) {
-            AfwServerNetworking.send(p, payload);
+            ServerPlayNetworking.send((ServerPlayerEntity)p, (CustomPayload)payload);
         }
         boolean chained = false;
         if (inst.playerUuid != null) {
@@ -982,8 +982,8 @@ public final class AfwServerAnimationController {
             Set<ServerPlayerEntity> targets = AfwServerAnimationController.computeInstanceBroadcastTargets(world, null, inst);
             AfwServerAnimationController.rememberInstanceSubscribers(inst, targets);
             for (ServerPlayerEntity p : targets) {
-                AfwServerNetworking.send(p, payload);
-                AfwServerNetworking.send(p, new AnimationSpeedUpdateS2CPayload(adv.instanceId(), inst.speed));
+                ServerPlayNetworking.send((ServerPlayerEntity)p, (CustomPayload)payload);
+                ServerPlayNetworking.send((ServerPlayerEntity)p, (CustomPayload)new AnimationSpeedUpdateS2CPayload(adv.instanceId(), inst.speed));
             }
             ((AfwAnimationEvents.StageAdvance)AfwAnimationEvents.STAGE_ADVANCE.invoker()).onStageAdvance(world, adv.instanceId(), inst.animationId, List.copyOf(inst.actorUuids), AfwServerAnimationController.sanitizeActorKeys(inst.actorKeys, inst.actorUuids.size()), adv.advanceTick());
         }
@@ -1055,7 +1055,7 @@ public final class AfwServerAnimationController {
                 return null;
             }
             SharedTransform base = sharedTransform;
-            sharedTransform = new SharedTransform(waterAnchor.getPos(), base.yaw(), base.pitch(), base.headYaw(), base.bodyYaw());
+            sharedTransform = new SharedTransform(waterAnchor.getEntityPos(), base.yaw(), base.pitch(), base.headYaw(), base.bodyYaw());
         } else {
             SharedTransform dismountTransform;
             if (AfwServerAnimationController.anyActorOnWaterFooting(world, actorUuids)) {
@@ -1092,18 +1092,9 @@ public final class AfwServerAnimationController {
             lockedPitch = 0.0f;
             preservePlayerLook = true;
         }
-        // Every animation actor must keep the authored/start orientation.  The
-        // camera is still free to orbit, but its yaw must not become the
-        // replacement model's body yaw on the client.
-        if (!lockOrientation) {
-            lockOrientation = true;
-            lockedYaw = sharedTransform.yaw();
-            lockedHeadYaw = sharedTransform.headYaw();
-            lockedPitch = sharedTransform.pitch();
-        }
         Set<UUID> actorUuidSet = Set.copyOf(new HashSet<UUID>(actorUuids));
         List<String> safeActorKeys = actorKeys != null && actorKeys.size() == actorUuids.size() ? List.copyOf(actorKeys) : List.of();
-        safeStages = stages == null ? List.of() : List.copyOf(stages);
+        List<Object> list = safeStages = stages == null ? List.of() : List.copyOf(stages);
         if (!((AfwAnimationEvents.AllowStart)AfwAnimationEvents.ALLOW_START.invoker()).allowStart(world, animationId, List.copyOf(actorUuids), safeActorKeys, safeStages, requester, damageBehavior, ignoreAttackers, safeMetadata)) {
             return null;
         }
@@ -1120,7 +1111,7 @@ public final class AfwServerAnimationController {
         }
         Set<ServerPlayerEntity> targets = AfwServerAnimationController.computeBroadcastTargets(world, requester, actorUuids);
         for (ServerPlayerEntity p : targets) {
-            AfwServerNetworking.send(p, payload);
+            ServerPlayNetworking.send((ServerPlayerEntity)p, (CustomPayload)payload);
         }
         UUID playerUuid = AfwServerAnimationController.resolvePlayerUuid(world, actorUuids);
         originalTransforms = AfwServerAnimationController.applyDeferredQueueOriginal(world, playerUuid, originalTransforms, safeMetadata);
@@ -1219,7 +1210,7 @@ public final class AfwServerAnimationController {
         double y = 0.0;
         double z = 0.0;
         for (Entity class_12972 : entities) {
-            Vec3d p = class_12972.getPos();
+            Vec3d p = class_12972.getEntityPos();
             x += p.x;
             y += p.y;
             z += p.z;
@@ -1242,11 +1233,11 @@ public final class AfwServerAnimationController {
                     VanillaChestLootTableGenerator = null;
                 }
                 Vec3d restorePos = VanillaChestLootTableGenerator;
-                originals.put(uuid, new OriginalTransform(world.getRegistryKey(), living.getPos(), living.getYaw(), living.getPitch(), living.getHeadYaw(), living.getBodyYaw(), restorePos));
+                originals.put(uuid, new OriginalTransform((RegistryKey<World>)world.getRegistryKey(), living.getEntityPos(), living.getYaw(), living.getPitch(), living.getHeadYaw(), living.getBodyYaw(), restorePos));
                 continue;
             }
             if (e == null) continue;
-            originals.put(uuid, new OriginalTransform(world.getRegistryKey(), e.getPos(), e.getYaw(), e.getPitch(), e.getYaw(), e.getYaw()));
+            originals.put(uuid, new OriginalTransform((RegistryKey<World>)world.getRegistryKey(), e.getEntityPos(), e.getYaw(), e.getPitch(), e.getYaw(), e.getYaw()));
         }
         return originals;
     }
@@ -1372,20 +1363,21 @@ public final class AfwServerAnimationController {
 
     private static boolean meetsWaterRequirement(Entity e, AfwAnimationDefinitions.WaterRequirement requirement) {
         return switch (requirement) {
-            case SURFACE -> {
+            default -> throw new MatchException(null, null);
+            case AfwAnimationDefinitions.WaterRequirement.SURFACE -> {
                 if (e.isTouchingWater() && !e.isSubmergedInWater()) {
                     yield true;
                 }
                 yield false;
             }
-            case UNDERWATER -> e.isSubmergedInWater();
-            case NONE -> true;
+            case AfwAnimationDefinitions.WaterRequirement.UNDERWATER -> e.isSubmergedInWater();
+            case AfwAnimationDefinitions.WaterRequirement.NONE -> true;
         };
     }
 
     @Nullable
     private static BlockPlacement findWallPlacement(ServerWorld world, Entity anchor, AfwAnimationDefinitions.BlockRequirements requirements) {
-        Vec3d anchorPos = anchor.getPos();
+        Vec3d anchorPos = anchor.getEntityPos();
         BlockPos anchorBlock = BlockPos.ofFloored((Position)anchorPos);
         int radius = AfwServerAnimationController.getBlockScanRadius();
         double bestDistSq = Double.MAX_VALUE;
@@ -1435,7 +1427,7 @@ public final class AfwServerAnimationController {
 
     @Nullable
     private static BlockPlacement findCenterSupportPlacement(ServerWorld world, Entity anchor, AfwAnimationDefinitions.BlockRequirements requirements) {
-        Vec3d anchorPos = anchor.getPos();
+        Vec3d anchorPos = anchor.getEntityPos();
         BlockPos anchorBlock = BlockPos.ofFloored((Position)anchorPos);
         int radius = AfwServerAnimationController.getBlockScanRadius();
         double bestDistSq = Double.MAX_VALUE;
@@ -1842,9 +1834,9 @@ public final class AfwServerAnimationController {
 
     private static float directionToYaw(Direction dir) {
         return switch (dir) {
-            case WEST -> 90.0f;
-            case NORTH -> 180.0f;
-            case EAST -> -90.0f;
+            case Direction.WEST -> 90.0f;
+            case Direction.NORTH -> 180.0f;
+            case Direction.EAST -> -90.0f;
             default -> 0.0f;
         };
     }
@@ -1922,7 +1914,7 @@ public final class AfwServerAnimationController {
         if (blocks == null || blocks.isEmpty()) {
             return true;
         }
-        Identifier blockId = Registries.BLOCK.getId(state.getBlock());
+        Identifier blockId = Registries.BLOCK.getId((Object)state.getBlock());
         if (blocks.blockIds().contains(blockId)) {
             return true;
         }
@@ -1974,27 +1966,35 @@ public final class AfwServerAnimationController {
         Map<UUID, AiDisableState> states = AI_DISABLE_STATE_BY_WORLD.get(world.getRegistryKey());
         for (UUID uuid : actorUuids) {
             AiDisableState state;
+            Entity class_12972;
             Entity e = world.getEntity(uuid);
             if (e == null) continue;
-            if (e instanceof ServerPlayerEntity player) {
-                AfwServerAnimationController.preparePlayerForAnimationTeleport(player);
-                float teleportYaw = preservePlayerLook ? player.getYaw() : sharedTransform.yaw();
-                float teleportPitch = preservePlayerLook ? player.getPitch() : sharedTransform.pitch();
-                player.networkHandler.requestTeleport(sharedTransform.pos().x, sharedTransform.pos().y,
-                        sharedTransform.pos().z, teleportYaw, teleportPitch);
-                player.setHeadYaw(sharedTransform.headYaw());
-                player.setBodyYaw(sharedTransform.bodyYaw());
-            } else if (e instanceof LivingEntity living) {
-                living.refreshPositionAndAngles(sharedTransform.pos().x, sharedTransform.pos().y,
-                        sharedTransform.pos().z, sharedTransform.yaw(), sharedTransform.pitch());
-                living.setHeadYaw(sharedTransform.headYaw());
-                living.setBodyYaw(sharedTransform.bodyYaw());
-            } else {
-                e.refreshPositionAndAngles(sharedTransform.pos().x, sharedTransform.pos().y,
-                        sharedTransform.pos().z, sharedTransform.yaw(), sharedTransform.pitch());
+            Objects.requireNonNull(e);
+            int n = 0;
+            switch (SwitchBootstraps.typeSwitch("typeSwitch", new Object[]{ServerPlayerEntity.class, LivingEntity.class}, (Object)class_12972, n)) {
+                case 0: {
+                    ServerPlayerEntity player = (ServerPlayerEntity)class_12972;
+                    AfwServerAnimationController.preparePlayerForAnimationTeleport(player);
+                    float teleportYaw = preservePlayerLook ? player.getYaw() : sharedTransform.yaw();
+                    float teleportPitch = preservePlayerLook ? player.getPitch() : sharedTransform.pitch();
+                    player.networkHandler.requestTeleport(sharedTransform.pos().x, sharedTransform.pos().y, sharedTransform.pos().z, teleportYaw, teleportPitch);
+                    player.setHeadYaw(sharedTransform.headYaw());
+                    player.setBodyYaw(sharedTransform.bodyYaw());
+                    break;
+                }
+                case 1: {
+                    LivingEntity living = (LivingEntity)class_12972;
+                    living.refreshPositionAndAngles(sharedTransform.pos().x, sharedTransform.pos().y, sharedTransform.pos().z, sharedTransform.yaw(), sharedTransform.pitch());
+                    living.setHeadYaw(sharedTransform.headYaw());
+                    living.setBodyYaw(sharedTransform.bodyYaw());
+                    break;
+                }
+                default: {
+                    e.refreshPositionAndAngles(sharedTransform.pos().x, sharedTransform.pos().y, sharedTransform.pos().z, sharedTransform.yaw(), sharedTransform.pitch());
+                }
             }
             e.setVelocity(Vec3d.ZERO);
-            e.fallDistance = 0.0f;
+            e.fallDistance = 0.0;
             if (!(e instanceof MobEntity)) continue;
             MobEntity mob = (MobEntity)e;
             if (states == null || (state = states.get(uuid)) == null) continue;
@@ -2016,7 +2016,7 @@ public final class AfwServerAnimationController {
             player.wakeUp(true, true);
         }
         player.setVelocity(Vec3d.ZERO);
-        player.fallDistance = 0.0f;
+        player.fallDistance = 0.0;
     }
 
     @Nullable
@@ -2055,7 +2055,7 @@ public final class AfwServerAnimationController {
             if (!(entity instanceof ServerPlayerEntity) || !(player = (ServerPlayerEntity)entity).hasVehicle() || (vehicle = player.getVehicle()) == null || vehicle.isRemoved()) continue;
             Vec3d dismountPos = vehicle.updatePassengerForDismount((LivingEntity)player);
             if (dismountPos == null) {
-                dismountPos = vehicle.getPos();
+                dismountPos = vehicle.getEntityPos();
             }
             return AfwServerAnimationController.withSharedPosition(base, dismountPos);
         }
@@ -2190,24 +2190,34 @@ public final class AfwServerAnimationController {
         Map<UUID, AiDisableState> states = AI_DISABLE_STATE_BY_WORLD.get(inst.world.getRegistryKey());
         for (Map.Entry<UUID, OriginalTransform> entry : originals.entrySet()) {
             AiDisableState state;
+            Entity class_12972;
             Entity e;
             OriginalTransform ot;
             if (skipActors != null && skipActors.contains(entry.getKey()) || (ot = entry.getValue()).worldKey() != inst.world.getRegistryKey() || (e = inst.world.getEntity(entry.getKey())) == null) continue;
-            if (e instanceof ServerPlayerEntity player) {
-                AfwServerAnimationController.preparePlayerForAnimationTeleport(player);
-                Vec3d restorePos = ot.restorePosOrPos();
-                player.networkHandler.requestTeleport(restorePos.x, restorePos.y, restorePos.z,
-                        player.getYaw(), player.getPitch());
-                AfwServerAnimationController.clearDeferredQueueOriginal(inst.world, entry.getKey());
-            } else if (e instanceof LivingEntity living) {
-                living.refreshPositionAndAngles(ot.pos().x, ot.pos().y, ot.pos().z, ot.yaw(), ot.pitch());
-                living.setHeadYaw(ot.headYaw());
-                living.setBodyYaw(ot.bodyYaw());
-            } else {
-                e.refreshPositionAndAngles(ot.pos().x, ot.pos().y, ot.pos().z, ot.yaw(), ot.pitch());
+            Objects.requireNonNull(e);
+            int n = 0;
+            switch (SwitchBootstraps.typeSwitch("typeSwitch", new Object[]{ServerPlayerEntity.class, LivingEntity.class}, (Object)class_12972, n)) {
+                case 0: {
+                    ServerPlayerEntity player = (ServerPlayerEntity)class_12972;
+                    AfwServerAnimationController.preparePlayerForAnimationTeleport(player);
+                    Vec3d restorePos = ot.restorePosOrPos();
+                    player.networkHandler.requestTeleport(restorePos.x, restorePos.y, restorePos.z, player.getYaw(), player.getPitch());
+                    AfwServerAnimationController.clearDeferredQueueOriginal(inst.world, entry.getKey());
+                    break;
+                }
+                case 1: {
+                    LivingEntity living = (LivingEntity)class_12972;
+                    living.refreshPositionAndAngles(ot.pos().x, ot.pos().y, ot.pos().z, ot.yaw(), ot.pitch());
+                    living.setHeadYaw(ot.headYaw());
+                    living.setBodyYaw(ot.bodyYaw());
+                    break;
+                }
+                default: {
+                    e.refreshPositionAndAngles(ot.pos().x, ot.pos().y, ot.pos().z, ot.yaw(), ot.pitch());
+                }
             }
             e.setVelocity(Vec3d.ZERO);
-            e.fallDistance = 0.0f;
+            e.fallDistance = 0.0;
             if (!(e instanceof MobEntity) || states == null || (state = states.get(entry.getKey())) == null) continue;
             state.lockedYaw = ot.yaw();
             state.lockedHeadYaw = ot.headYaw();
@@ -2328,7 +2338,7 @@ public final class AfwServerAnimationController {
             mob.setAiDisabled(true);
             mob.getNavigation().stop();
             mob.setVelocity(Vec3d.ZERO);
-            mob.fallDistance = 0.0f;
+            mob.fallDistance = 0.0;
             mob.setYaw(state.lockedYaw);
             mob.setPitch(state.lockedPitch);
             mob.setHeadYaw(state.lockedHeadYaw);
@@ -2422,7 +2432,7 @@ public final class AfwServerAnimationController {
 
     private static void freezeMobDuringAnimation(MobEntity mob, AiDisableState state) {
         mob.setVelocity(Vec3d.ZERO);
-        mob.fallDistance = 0.0f;
+        mob.fallDistance = 0.0;
         mob.setYaw(state.lockedYaw);
         mob.setPitch(state.lockedPitch);
         mob.setHeadYaw(state.lockedHeadYaw);
@@ -2434,12 +2444,12 @@ public final class AfwServerAnimationController {
         if (state.originalAiDisabled) {
             mob.addCommandTag(AFW_NOAI_ORIG_TAG);
         } else {
-            mob.removeScoreboardTag(AFW_NOAI_ORIG_TAG);
+            mob.removeCommandTag(AFW_NOAI_ORIG_TAG);
         }
     }
 
     public static void sendActiveInstancesToPlayer(ServerPlayerEntity player) {
-        ServerWorld class_32182 = (ServerWorld)player.getWorld();
+        ServerWorld class_32182 = player.getEntityWorld();
         if (!(class_32182 instanceof ServerWorld)) {
             return;
         }
@@ -2450,7 +2460,7 @@ public final class AfwServerAnimationController {
             List<String> safeKeys = AfwServerAnimationController.sanitizeActorKeys(inst.actorKeys, inst.actorUuids.size());
             List<AnimationStageInfo> safeStages = inst.stages == null ? List.of() : List.copyOf(inst.stages);
             StartAnimationS2CPayload payload = new StartAnimationS2CPayload(inst.animationId, (UUID)entry.getKey(), inst.actorUuids, safeKeys, safeStages, inst.startTick, inst.speed, inst.lockOrientation, inst.lockedYaw, inst.lockedHeadYaw, inst.lockedPitch, inst.cameraOrbitTarget);
-            AfwServerNetworking.send(player, payload);
+            ServerPlayNetworking.send((ServerPlayerEntity)player, (CustomPayload)payload);
             inst.subscribedPlayerUuids.add(player.getUuid());
         }
     }
@@ -2554,7 +2564,7 @@ public final class AfwServerAnimationController {
             return "missing:" + uuid.substring(0, 8);
         }
         String display = entity.getDisplayName().getString();
-        Identifier typeId = Registries.ENTITY_TYPE.getId(entity.getType());
+        Identifier typeId = Registries.ENTITY_TYPE.getId((Object)entity.getType());
         if (display == null || display.isBlank()) {
             return typeId.getPath();
         }
@@ -2637,7 +2647,7 @@ public final class AfwServerAnimationController {
             AfwServerAnimationController.sendOrLogDebug(world, null, AfwDebugChatCategory.WARNING, AfwServerAnimationController.dbg("queue_skipped_player_unavailable", AfwServerAnimationController.describeAnimationIdForDebug(entry.animationId), AfwServerAnimationController.describeActorsForDebug(world, entry.actorUuids)), false);
             return QueueStartResult.SKIP;
         }
-        ArrayList<Entity> resolvedActors = new ArrayList<>();
+        ArrayList<Object> resolvedActors = new ArrayList<Object>();
         boolean missingNonPlayer = false;
         for (UUID actorUuid : entry.actorUuids) {
             LivingEntity living;
@@ -2856,13 +2866,13 @@ public final class AfwServerAnimationController {
     }
 
     private static void clearNoAiTags(MobEntity mob) {
-        mob.removeScoreboardTag(AFW_NOAI_TAG);
-        mob.removeScoreboardTag(AFW_NOAI_ORIG_TAG);
+        mob.removeCommandTag(AFW_NOAI_TAG);
+        mob.removeCommandTag(AFW_NOAI_ORIG_TAG);
     }
 
     private static void restoreAiState(MobEntity mob, AiDisableState state) {
         mob.setVelocity(Vec3d.ZERO);
-        mob.fallDistance = 0.0f;
+        mob.fallDistance = 0.0;
         mob.setAiDisabled(state.originalAiDisabled);
         AfwServerAnimationController.clearNoAiTags(mob);
     }
@@ -2884,7 +2894,7 @@ public final class AfwServerAnimationController {
             }
             player.setNoGravity(true);
             player.setVelocity(Vec3d.ZERO);
-            player.fallDistance = 0.0f;
+            player.fallDistance = 0.0;
         }
     }
 
@@ -2906,7 +2916,7 @@ public final class AfwServerAnimationController {
             ServerPlayerEntity player = Objects.requireNonNull(world.getServer()).getPlayerManager().getPlayer(uuid);
             if (player != null) {
                 player.setNoGravity(state.originalNoGravity);
-                player.fallDistance = 0.0f;
+                player.fallDistance = 0.0;
             }
             states.remove(uuid);
         }
@@ -2927,7 +2937,7 @@ public final class AfwServerAnimationController {
             ServerPlayerEntity player = Objects.requireNonNull(world.getServer()).getPlayerManager().getPlayer(entry.getKey());
             if (player == null) continue;
             player.setNoGravity(entry.getValue().originalNoGravity);
-            player.fallDistance = 0.0f;
+            player.fallDistance = 0.0;
         }
     }
 
@@ -2936,7 +2946,7 @@ public final class AfwServerAnimationController {
         if (world == null) {
             return;
         }
-        Set<UUID> lockedNow = currentlyLockedPlayers == null ? Set.of() : currentlyLockedPlayers;
+        Set<Object> lockedNow = currentlyLockedPlayers == null ? Set.of() : currentlyLockedPlayers;
         Map<UUID, PlayerLockState> states = PLAYER_LOCK_STATE_BY_WORLD.get(world.getRegistryKey());
         if (states != null && !states.isEmpty()) {
             Iterator<Map.Entry<UUID, PlayerLockState>> it = states.entrySet().iterator();
@@ -2947,7 +2957,7 @@ public final class AfwServerAnimationController {
                 ServerPlayerEntity player = Objects.requireNonNull(world.getServer()).getPlayerManager().getPlayer(uuid);
                 if (player != null) {
                     player.setNoGravity(entry.getValue().originalNoGravity);
-                    player.fallDistance = 0.0f;
+                    player.fallDistance = 0.0;
                 }
                 it.remove();
             }
@@ -2959,7 +2969,7 @@ public final class AfwServerAnimationController {
             uuid = player.getUuid();
             if (lockedNow.contains(uuid) || AfwServerAnimationController.isActorActive(world, uuid) || !player.hasNoGravity() || player.isSpectator() || player.getAbilities().flying) continue;
             player.setNoGravity(false);
-            player.fallDistance = 0.0f;
+            player.fallDistance = 0.0;
         }
     }
 
@@ -2986,7 +2996,7 @@ public final class AfwServerAnimationController {
                 player.setAir(player.getMaxAir());
             }
             player.setVelocity(Vec3d.ZERO);
-            player.fallDistance = 0.0f;
+            player.fallDistance = 0.0;
         }
     }
 
@@ -2999,7 +3009,7 @@ public final class AfwServerAnimationController {
         }
         block0: for (UUID playerUuid : activePlayerUuids) {
             Box searchBox;
-            List<Entity> nearby;
+            List nearby;
             ServerPlayerEntity player = Objects.requireNonNull(world.getServer()).getPlayerManager().getPlayer(playerUuid);
             if (player == null || player.getEntityWorld() != world || !player.isAlive() || player.isRemoved() || (nearby = world.getOtherEntities((Entity)player, searchBox = player.getBoundingBox().expand(1.0, 0.5, 1.0), entity -> {
                 MobEntity mob;
@@ -3029,7 +3039,7 @@ public final class AfwServerAnimationController {
         double overlap = Math.max(0.0, 0.85 - dist);
         double strength = 0.08 * (0.6 + overlap / 0.85);
         mob.addVelocity(dir.x * strength, 0.0, dir.z * strength);
-        mob.fallDistance = 0.0f;
+        mob.fallDistance = 0.0;
         return true;
     }
 
@@ -3111,7 +3121,7 @@ public final class AfwServerAnimationController {
                 StopAnimationS2CPayload payload = new StopAnimationS2CPayload(instanceId, stopTick);
                 Set<ServerPlayerEntity> targets = AfwServerAnimationController.computeInstanceBroadcastTargets(world, null, inst);
                 for (ServerPlayerEntity p : targets) {
-                    AfwServerNetworking.send(p, payload);
+                    ServerPlayNetworking.send((ServerPlayerEntity)p, (CustomPayload)payload);
                 }
                 AfwServerAnimationController.fireStopEvent(instanceId, inst);
                 AfwServerAnimationController.restoreTransforms(inst, chained && inst.playerUuid != null ? Set.of(inst.playerUuid) : null);

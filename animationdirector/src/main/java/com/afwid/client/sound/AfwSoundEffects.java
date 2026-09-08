@@ -32,8 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
 import net.minecraft.util.Identifier;
 import net.minecraft.resource.ResourceType;
 import net.minecraft.resource.Resource;
@@ -43,13 +42,13 @@ import net.minecraft.resource.SynchronousResourceReloader;
 
 public final class AfwSoundEffects {
     private static volatile Map<Identifier, Map<String, SoundAnimation>> SOUND_BY_ANIMATION = Map.of();
-    private static final Identifier RELOADER_ID = new Identifier((String)"animationframework", (String)"afw_sound_effects");
+    private static final Identifier RELOADER_ID = Identifier.of((String)"animationframework", (String)"afw_sound_effects");
 
     private AfwSoundEffects() {
     }
 
     public static void registerReloadListener() {
-        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new Reloader());
+        ResourceLoader.get((ResourceType)ResourceType.CLIENT_RESOURCES).registerReloader(RELOADER_ID, (ResourceReloader)new Reloader());
     }
 
     public static boolean hasAny() {
@@ -68,17 +67,16 @@ public final class AfwSoundEffects {
     }
 
     private static void reload(ResourceManager manager) {
-        Map<Identifier, Resource> resources = manager.findResources(
-                "animations", id -> id.getPath().endsWith(".animation.json"));
-        ArrayList<Map.Entry<Identifier, Resource>> entries = new ArrayList<>(resources.entrySet());
-        entries.sort(Comparator.comparing(e -> e.getKey().toString()));
+        Map resources = manager.findResources("geckolib/animations", id -> id.getPath().endsWith(".animation.json"));
+        ArrayList entries = new ArrayList(resources.entrySet());
+        entries.sort(Comparator.comparing(e -> ((Identifier)e.getKey()).toString()));
         LinkedHashMap<Identifier, Map> loaded = new LinkedHashMap<Identifier, Map>();
         int cueCount = 0;
-        for (Map.Entry<Identifier, Resource> entry : entries) {
-            Identifier fileId = entry.getKey();
+        for (Map.Entry entry : entries) {
+            Identifier fileId = (Identifier)entry.getKey();
             Identifier animationId = AfwSoundEffects.animationIdFromPath(fileId);
             if (animationId == null) continue;
-            try (InputStreamReader reader = new InputStreamReader(entry.getValue().getInputStream(), StandardCharsets.UTF_8);){
+            try (InputStreamReader reader = new InputStreamReader(((Resource)entry.getValue()).getInputStream(), StandardCharsets.UTF_8);){
                 JsonObject animationsObj;
                 JsonObject root = JsonParser.parseReader((Reader)reader).getAsJsonObject();
                 JsonObject jsonObject = animationsObj = root.has("animations") && root.get("animations").isJsonObject() ? root.getAsJsonObject("animations") : null;
@@ -218,7 +216,7 @@ public final class AfwSoundEffects {
             return null;
         }
         String animPath = path.substring(prefix.length(), path.length() - suffix.length());
-        return new Identifier((String)fileId.getNamespace(), (String)animPath);
+        return Identifier.of((String)fileId.getNamespace(), (String)animPath);
     }
 
     private static void setupWarn(String template, Object ... args) {
@@ -232,11 +230,7 @@ public final class AfwSoundEffects {
     }
 
     public static final class Reloader
-    implements SynchronousResourceReloader, IdentifiableResourceReloadListener {
-        public Identifier getFabricId() {
-            return RELOADER_ID;
-        }
-
+    implements SynchronousResourceReloader {
         public void reload(ResourceManager manager) {
             AfwSoundEffects.reload(manager);
         }

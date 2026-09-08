@@ -24,11 +24,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value={LivingEntity.class})
 public abstract class LivingEntityDamageMixin {
     @Inject(method={"damage"}, at={@At(value="HEAD")}, cancellable=true)
-    private void afw$handleDamage(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
-        LivingEntity self = (LivingEntity)(Object)this;
-        if (self.getEntityWorld() instanceof ServerWorld world
-                && !AfwServerAnimationController.handleActorDamage(world, self, source)) {
-            cir.setReturnValue(false);
+    private void afw$handleDamage(ServerWorld world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+        if (!AfwServerAnimationController.handleActorDamage(world, (LivingEntity)this, source)) {
+            cir.setReturnValue((Object)false);
         }
     }
 }

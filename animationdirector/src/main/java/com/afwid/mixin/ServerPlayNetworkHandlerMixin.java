@@ -26,6 +26,8 @@
 package com.afwid.mixin;
 
 import com.afwid.server.AfwServerAnimationController;
+import net.minecraft.network.packet.c2s.play.PickItemFromBlockC2SPacket;
+import net.minecraft.network.packet.c2s.play.PickItemFromEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.ButtonClickC2SPacket;
 import net.minecraft.network.packet.c2s.play.ClickSlotC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
@@ -37,6 +39,7 @@ import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
+import net.minecraft.network.packet.c2s.play.SlotChangedStateC2SPacket;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -54,7 +57,11 @@ public abstract class ServerPlayNetworkHandlerMixin {
         if (this.player == null) {
             return false;
         }
-        ServerWorld world = this.player.getServerWorld();
+        ServerWorld class_32182 = this.player.getEntityWorld();
+        if (!(class_32182 instanceof ServerWorld)) {
+            return false;
+        }
+        ServerWorld world = class_32182;
         return AfwServerAnimationController.isActorActive(world, this.player.getUuid());
     }
 
@@ -107,6 +114,13 @@ public abstract class ServerPlayNetworkHandlerMixin {
         }
     }
 
+    @Inject(method={"onSlotChangedState"}, at={@At(value="HEAD")}, cancellable=true)
+    private void afw$blockSlotState(SlotChangedStateC2SPacket packet, CallbackInfo ci) {
+        if (this.afw$shouldBlock()) {
+            ci.cancel();
+        }
+    }
+
     @Inject(method={"onUpdateSelectedSlot"}, at={@At(value="HEAD")}, cancellable=true)
     private void afw$blockSelectedSlot(UpdateSelectedSlotC2SPacket packet, CallbackInfo ci) {
         if (this.afw$shouldBlock()) {
@@ -114,5 +128,18 @@ public abstract class ServerPlayNetworkHandlerMixin {
         }
     }
 
+    @Inject(method={"onPickItemFromBlock"}, at={@At(value="HEAD")}, cancellable=true)
+    private void afw$blockPickFromBlock(PickItemFromBlockC2SPacket packet, CallbackInfo ci) {
+        if (this.afw$shouldBlock()) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method={"onPickItemFromEntity"}, at={@At(value="HEAD")}, cancellable=true)
+    private void afw$blockPickFromEntity(PickItemFromEntityC2SPacket packet, CallbackInfo ci) {
+        if (this.afw$shouldBlock()) {
+            ci.cancel();
+        }
+    }
 }
 
