@@ -1,35 +1,31 @@
+/*
+ * Decompiled with CFR 0.152.
+ * 
+ * Could not load the following classes:
+ *  net.minecraft.util.Identifier
+ *  net.minecraft.network.packet.CustomPayload
+ *  net.minecraft.network.packet.CustomPayload$Id
+ *  net.minecraft.network.RegistryByteBuf
+ *  net.minecraft.network.codec.PacketCodecs
+ *  net.minecraft.network.codec.PacketCodec
+ */
 package com.afwid.network;
 
-import java.util.ArrayList;
 import java.util.List;
-import net.minecraft.network.PacketByteBuf;
 import net.minecraft.util.Identifier;
+import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.RegistryByteBuf;
+import net.minecraft.network.codec.PacketCodecs;
+import net.minecraft.network.codec.PacketCodec;
 
-public record DebugStartAnimationC2SPayload(List<Integer> actorEntityIds, String damageBehaviorId,
-                                             boolean ignoreAttackers, int anchorEntityId) implements AfwPacket {
-    public static final Identifier ID = new Identifier("animationframework", "debug_start_animation");
-    private static final int MAX_ACTORS = 32;
+public record DebugStartAnimationC2SPayload(List<Integer> actorEntityIds, String damageBehaviorId, boolean ignoreAttackers, int anchorEntityId) implements CustomPayload
+{
+    public static final Identifier DEBUG_START_ANIMATION_ID = Identifier.of((String)"animationframework", (String)"debug_start_animation");
+    public static final CustomPayload.Id<DebugStartAnimationC2SPayload> ID = new CustomPayload.Id(DEBUG_START_ANIMATION_ID);
+    public static final PacketCodec<RegistryByteBuf, DebugStartAnimationC2SPayload> CODEC = PacketCodec.tuple((PacketCodec)PacketCodecs.INTEGER.collect(PacketCodecs.toList((int)32)), DebugStartAnimationC2SPayload::actorEntityIds, (PacketCodec)PacketCodecs.STRING, DebugStartAnimationC2SPayload::damageBehaviorId, (PacketCodec)PacketCodecs.BOOLEAN, DebugStartAnimationC2SPayload::ignoreAttackers, (PacketCodec)PacketCodecs.INTEGER, DebugStartAnimationC2SPayload::anchorEntityId, DebugStartAnimationC2SPayload::new);
 
-    public DebugStartAnimationC2SPayload {
-        actorEntityIds = List.copyOf(actorEntityIds);
-        if (actorEntityIds.size() > MAX_ACTORS) throw new IllegalArgumentException("Too many actors");
-        damageBehaviorId = damageBehaviorId == null ? "" : damageBehaviorId;
-    }
-
-    public static DebugStartAnimationC2SPayload read(PacketByteBuf buf) {
-        int count = buf.readVarInt();
-        if (count < 0 || count > MAX_ACTORS) throw new IllegalArgumentException("Invalid actor count: " + count);
-        List<Integer> ids = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) ids.add(buf.readVarInt());
-        return new DebugStartAnimationC2SPayload(ids, buf.readString(64), buf.readBoolean(), buf.readVarInt());
-    }
-
-    @Override public Identifier id() { return ID; }
-    @Override public void write(PacketByteBuf buf) {
-        buf.writeVarInt(actorEntityIds.size());
-        actorEntityIds.forEach(buf::writeVarInt);
-        buf.writeString(damageBehaviorId, 64);
-        buf.writeBoolean(ignoreAttackers);
-        buf.writeVarInt(anchorEntityId);
+    public CustomPayload.Id<? extends CustomPayload> getId() {
+        return ID;
     }
 }
+

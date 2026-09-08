@@ -1,38 +1,34 @@
+/*
+ * Decompiled with CFR 0.152.
+ * 
+ * Could not load the following classes:
+ *  net.minecraft.util.Identifier
+ *  net.minecraft.util.Uuids
+ *  net.minecraft.network.packet.CustomPayload
+ *  net.minecraft.network.packet.CustomPayload$Id
+ *  net.minecraft.network.RegistryByteBuf
+ *  net.minecraft.network.codec.PacketCodecs
+ *  net.minecraft.network.codec.PacketCodec
+ */
 package com.afwid.network;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import net.minecraft.network.PacketByteBuf;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.Uuids;
+import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.RegistryByteBuf;
+import net.minecraft.network.codec.PacketCodecs;
+import net.minecraft.network.codec.PacketCodec;
 
-public record DebugJoinAnimationC2SPayload(UUID instanceId, List<Integer> actorEntityIds) implements AfwPacket {
-    public static final Identifier ID = new Identifier("animationframework", "debug_join_animation");
-    private static final int MAX_ACTORS = 32;
+public record DebugJoinAnimationC2SPayload(UUID instanceId, List<Integer> actorEntityIds) implements CustomPayload
+{
+    public static final Identifier DEBUG_JOIN_ANIMATION_ID = Identifier.of((String)"animationframework", (String)"debug_join_animation");
+    public static final CustomPayload.Id<DebugJoinAnimationC2SPayload> ID = new CustomPayload.Id(DEBUG_JOIN_ANIMATION_ID);
+    public static final PacketCodec<RegistryByteBuf, DebugJoinAnimationC2SPayload> CODEC = PacketCodec.tuple((PacketCodec)Uuids.PACKET_CODEC, DebugJoinAnimationC2SPayload::instanceId, (PacketCodec)PacketCodecs.INTEGER.collect(PacketCodecs.toList((int)32)), DebugJoinAnimationC2SPayload::actorEntityIds, DebugJoinAnimationC2SPayload::new);
 
-    public DebugJoinAnimationC2SPayload {
-        actorEntityIds = List.copyOf(actorEntityIds);
-        if (actorEntityIds.size() > MAX_ACTORS) throw new IllegalArgumentException("Too many actors");
-    }
-
-    public static DebugJoinAnimationC2SPayload read(PacketByteBuf buf) {
-        UUID instanceId = buf.readUuid();
-        int count = readBoundedCount(buf, MAX_ACTORS);
-        List<Integer> ids = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) ids.add(buf.readVarInt());
-        return new DebugJoinAnimationC2SPayload(instanceId, ids);
-    }
-
-    @Override public Identifier id() { return ID; }
-    @Override public void write(PacketByteBuf buf) {
-        buf.writeUuid(instanceId);
-        buf.writeVarInt(actorEntityIds.size());
-        actorEntityIds.forEach(buf::writeVarInt);
-    }
-
-    private static int readBoundedCount(PacketByteBuf buf, int maximum) {
-        int count = buf.readVarInt();
-        if (count < 0 || count > maximum) throw new IllegalArgumentException("Invalid actor count: " + count);
-        return count;
+    public CustomPayload.Id<? extends CustomPayload> getId() {
+        return ID;
     }
 }
+

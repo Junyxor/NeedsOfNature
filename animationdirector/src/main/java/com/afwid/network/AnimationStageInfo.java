@@ -31,49 +31,15 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.item.ItemConvertible;
 import net.minecraft.util.Identifier;
 import net.minecraft.registry.Registries;
-import net.minecraft.client.render.model.json.ModelTransformationMode;
-import net.minecraft.network.PacketByteBuf;
+import net.minecraft.item.ItemDisplayContext;
+import net.minecraft.network.RegistryByteBuf;
+import net.minecraft.network.codec.PacketCodecs;
+import net.minecraft.network.codec.PacketCodec;
 import org.jetbrains.annotations.Nullable;
 
 public record AnimationStageInfo(Identifier animationId, boolean loop, long lengthTicks, boolean allowJoin, double speed, Identifier playbackAnimationId, List<ActorPropEntry> actorProps, double cycleMidpointOffsetSeconds, double cycleTicks) {
-    public static final Codec<AnimationStageInfo> DATA_CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            Identifier.CODEC.fieldOf("id").forGetter(AnimationStageInfo::animationId),
-            Codec.BOOL.optionalFieldOf("loop", true).forGetter(AnimationStageInfo::loop),
-            Codec.DOUBLE.optionalFieldOf("cycle_seconds", 0.0).forGetter(stage -> exactTicksToSeconds(stage.cycleTicks())),
-            Codec.BOOL.optionalFieldOf("allow_join", true).forGetter(AnimationStageInfo::allowJoin),
-            Codec.DOUBLE.optionalFieldOf("speed", 1.0).forGetter(AnimationStageInfo::speed),
-            Codec.DOUBLE.optionalFieldOf("cycle_midpoint_offset_seconds", 0.0).forGetter(AnimationStageInfo::cycleMidpointOffsetSeconds)
-    ).apply(instance, (animationId, loop, cycleSeconds, allowJoin, speed, offset) ->
-            new AnimationStageInfo(animationId, loop, secondsToTicks(cycleSeconds), allowJoin, speed,
-                    animationId, List.of(), offset, secondsToExactTicks(cycleSeconds))));
-
-    public void write(PacketByteBuf buf) {
-        buf.writeIdentifier(animationId);
-        buf.writeBoolean(loop);
-        buf.writeLong(lengthTicks);
-        buf.writeBoolean(allowJoin);
-        buf.writeDouble(speed);
-        buf.writeIdentifier(playbackAnimationId);
-        buf.writeVarInt(actorProps.size());
-        actorProps.forEach(entry -> entry.write(buf));
-        buf.writeDouble(cycleMidpointOffsetSeconds);
-        buf.writeDouble(cycleTicks);
-    }
-
-    public static AnimationStageInfo read(PacketByteBuf buf) {
-        Identifier animationId = buf.readIdentifier();
-        boolean loop = buf.readBoolean();
-        long lengthTicks = buf.readLong();
-        boolean allowJoin = buf.readBoolean();
-        double speed = buf.readDouble();
-        Identifier playbackAnimationId = buf.readIdentifier();
-        int propCount = buf.readVarInt();
-        if (propCount < 0 || propCount > 64) throw new IllegalArgumentException("Invalid actor prop count: " + propCount);
-        List<ActorPropEntry> props = new ArrayList<>(propCount);
-        for (int i = 0; i < propCount; i++) props.add(ActorPropEntry.read(buf));
-        return new AnimationStageInfo(animationId, loop, lengthTicks, allowJoin, speed, playbackAnimationId,
-                props, buf.readDouble(), buf.readDouble());
-    }
+    public static final Codec<AnimationStageInfo> DATA_CODEC = RecordCodecBuilder.create(instance -> instance.group((App)Identifier.CODEC.fieldOf("id").forGetter(AnimationStageInfo::animationId), (App)Codec.BOOL.optionalFieldOf("loop", (Object)true).forGetter(AnimationStageInfo::loop), (App)Codec.DOUBLE.optionalFieldOf("cycle_seconds", (Object)0.0).forGetter(stage -> AnimationStageInfo.exactTicksToSeconds(stage.cycleTicks())), (App)Codec.BOOL.optionalFieldOf("allow_join", (Object)true).forGetter(AnimationStageInfo::allowJoin), (App)Codec.DOUBLE.optionalFieldOf("speed", (Object)1.0).forGetter(AnimationStageInfo::speed), (App)Codec.DOUBLE.optionalFieldOf("cycle_midpoint_offset_seconds", (Object)0.0).forGetter(AnimationStageInfo::cycleMidpointOffsetSeconds)).apply((Applicative)instance, (animationId, loop, cycleSeconds, allowJoin, speed, offset) -> new AnimationStageInfo((Identifier)animationId, (boolean)loop, AnimationStageInfo.secondsToTicks(cycleSeconds), (boolean)allowJoin, (double)speed, (Identifier)animationId, List.of(), (double)offset, AnimationStageInfo.secondsToExactTicks(cycleSeconds))));
+    public static final PacketCodec<RegistryByteBuf, AnimationStageInfo> CODEC = PacketCodec.tuple((PacketCodec)Identifier.PACKET_CODEC.cast(), AnimationStageInfo::animationId, (PacketCodec)PacketCodecs.BOOLEAN, AnimationStageInfo::loop, (PacketCodec)PacketCodecs.LONG, AnimationStageInfo::lengthTicks, (PacketCodec)PacketCodecs.BOOLEAN, AnimationStageInfo::allowJoin, (PacketCodec)PacketCodecs.DOUBLE, AnimationStageInfo::speed, (PacketCodec)Identifier.PACKET_CODEC.cast(), AnimationStageInfo::playbackAnimationId, (PacketCodec)ActorPropEntry.CODEC.collect(PacketCodecs.toList()).xmap(List::copyOf, list -> list).cast(), AnimationStageInfo::actorProps, (PacketCodec)PacketCodecs.DOUBLE, AnimationStageInfo::cycleMidpointOffsetSeconds, (PacketCodec)PacketCodecs.DOUBLE, AnimationStageInfo::cycleTicks, AnimationStageInfo::new);
 
     public AnimationStageInfo {
         if (animationId == null) {
@@ -175,6 +141,9 @@ public record AnimationStageInfo(Identifier animationId, boolean loop, long leng
     }
 
     public record ActorPropEntry(String actorKey, @Nullable Identifier propLeftItemId, @Nullable Identifier propRightItemId) {
+        private static final PacketCodec<RegistryByteBuf, String> NULLABLE_IDENTIFIER_STRING_CODEC = PacketCodecs.STRING.cast();
+        public static final PacketCodec<RegistryByteBuf, ActorPropEntry> CODEC = PacketCodec.tuple((PacketCodec)PacketCodecs.STRING, ActorPropEntry::actorKey, NULLABLE_IDENTIFIER_STRING_CODEC, entry -> ActorPropEntry.identifierToString(entry.propLeftItemId()), NULLABLE_IDENTIFIER_STRING_CODEC, entry -> ActorPropEntry.identifierToString(entry.propRightItemId()), (actorKey, leftId, rightId) -> new ActorPropEntry((String)actorKey, ActorPropEntry.parseIdentifier(leftId), ActorPropEntry.parseIdentifier(rightId)));
+
         public ActorPropEntry(String actorKey, @Nullable Identifier propLeftItemId, @Nullable Identifier propRightItemId) {
             this.actorKey = actorKey = actorKey == null ? "" : actorKey.trim();
             this.propLeftItemId = propLeftItemId;
@@ -183,21 +152,6 @@ public record AnimationStageInfo(Identifier animationId, boolean loop, long leng
 
         public boolean isEmpty() {
             return this.propLeftItemId == null && this.propRightItemId == null;
-        }
-
-        public void write(PacketByteBuf buf) {
-            buf.writeString(actorKey, 128);
-            buf.writeBoolean(propLeftItemId != null);
-            if (propLeftItemId != null) buf.writeIdentifier(propLeftItemId);
-            buf.writeBoolean(propRightItemId != null);
-            if (propRightItemId != null) buf.writeIdentifier(propRightItemId);
-        }
-
-        public static ActorPropEntry read(PacketByteBuf buf) {
-            String actorKey = buf.readString(128);
-            Identifier left = buf.readBoolean() ? buf.readIdentifier() : null;
-            Identifier right = buf.readBoolean() ? buf.readIdentifier() : null;
-            return new ActorPropEntry(actorKey, left, right);
         }
 
         @Nullable
@@ -216,7 +170,7 @@ public record AnimationStageInfo(Identifier animationId, boolean loop, long leng
             if (stack == null || stack.isEmpty()) {
                 return null;
             }
-            return new AfwGeckoModelEvents.BoneItemProp(stack, ModelTransformationMode.THIRD_PERSON_LEFT_HAND);
+            return new AfwGeckoModelEvents.BoneItemProp(stack, ItemDisplayContext.THIRD_PERSON_LEFT_HAND);
         }
 
         @Nullable
@@ -225,7 +179,7 @@ public record AnimationStageInfo(Identifier animationId, boolean loop, long leng
             if (stack == null || stack.isEmpty()) {
                 return null;
             }
-            return new AfwGeckoModelEvents.BoneItemProp(stack, ModelTransformationMode.THIRD_PERSON_RIGHT_HAND);
+            return new AfwGeckoModelEvents.BoneItemProp(stack, ItemDisplayContext.THIRD_PERSON_RIGHT_HAND);
         }
 
         @Nullable
