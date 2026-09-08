@@ -1,0 +1,111 @@
+name: Patch AFW NeoForge migration
+
+on:
+  push:
+    branches:
+      - port/1.21.1-neoforge
+    paths:
+      - .github/workflows/patch-afw-neoforge.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Apply current AFW NeoForge fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('animationdirector/src/main/java/com/afwid/client/compat/wildfire/AfwWildfireGenderCompat.java')
+          s = p.read_text()
+          s = s.replace('import net.fabricmc.loader.api.FabricLoader;', 'import net.neoforged.fml.ModList;')
+          s = s.replace('if (!FabricLoader.getInstance().isModLoaded(MOD_ID)) {', 'if (!ModList.get().isLoaded(MOD_ID)) {')
+          old = '''        v0 = renderState.pose;
+          if (!(renderState instanceof BipedEntityRenderState)) ** GOTO lbl-1000
+          biped = (BipedEntityRenderState)renderState;
+          if (biped.isInSneakingPose) {
+              v1 = true;
+          } else lbl-1000:
+          // 2 sources
+
+          {
+              v1 = false;
+          }
+          snapshot = new RenderPoseSnapshot(v0, v1);
+          renderState.pose = EntityPose.STANDING;
+          if (renderState instanceof BipedEntityRenderState) {
+              biped = (BipedEntityRenderState)renderState;
+              biped.isInSneakingPose = false;
+          }
+          return snapshot;'''
+          new = '''        EntityPose pose = renderState.pose;
+          boolean sneaking = false;
+          if (renderState instanceof BipedEntityRenderState biped) {
+              sneaking = biped.isInSneakingPose;
+          }
+          RenderPoseSnapshot snapshot = new RenderPoseSnapshot(pose, sneaking);
+          renderState.pose = EntityPose.STANDING;
+          if (renderState instanceof BipedEntityRenderState biped) {
+              biped.isInSneakingPose = false;
+          }
+          return snapshot;'''
+          if old not in s:
+              raise SystemExit('neutralizeRenderPose decompiler block not found')
+          s = s.replace(old, new)
+          p.write_text(s)
+          PY
+
+      - name: Commit source fixes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add animationdirector/src/main/java/com/afwid/client/compat/wildfire/AfwWildfireGenderCompat.java
+          if ! git diff --cached --quiet; then
+            git commit -m 'port: fix AFW Wildfire 1.21 source and NeoForge mod lookup'
+            git push origin HEAD:port/1.21.1-neoforge
+          fi
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Build patched branch
+        shell: bash
+        run: |
+          set -o pipefail
+          chmod +x ./gradlew
+          ./gradlew clean build --stacktrace --warning-mode all 2>&1 | tee build.log
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: patched-afw-build-log
+          path: build.log
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Upload jars
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeedsOfNature-1.21.1-NeoForge-patched
+          path: |
+            animationdirector/build/libs/*.jar
+            needsofnature/build/libs/*.jar
+          if-no-files-found: error
