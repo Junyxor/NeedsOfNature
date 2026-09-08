@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.UUID;
-import net.fabricmc.loader.api.FabricLoader;
+import net.neoforged.fml.ModList;
 import net.minecraft.client.render.entity.state.EntityRenderState;
 import net.minecraft.client.render.entity.state.BipedEntityRenderState;
 import net.minecraft.client.render.entity.state.LivingEntityRenderState;
@@ -445,21 +445,14 @@ public final class AfwWildfireGenderCompat {
         if (renderState == null) {
             return null;
         }
-        v0 = renderState.pose;
-        if (!(renderState instanceof BipedEntityRenderState)) ** GOTO lbl-1000
-        biped = (BipedEntityRenderState)renderState;
-        if (biped.isInSneakingPose) {
-            v1 = true;
-        } else lbl-1000:
-        // 2 sources
-
-        {
-            v1 = false;
+        EntityPose pose = renderState.pose;
+        boolean sneaking = false;
+        if (renderState instanceof BipedEntityRenderState biped) {
+            sneaking = biped.isInSneakingPose;
         }
-        snapshot = new RenderPoseSnapshot(v0, v1);
+        RenderPoseSnapshot snapshot = new RenderPoseSnapshot(pose, sneaking);
         renderState.pose = EntityPose.STANDING;
-        if (renderState instanceof BipedEntityRenderState) {
-            biped = (BipedEntityRenderState)renderState;
+        if (renderState instanceof BipedEntityRenderState biped) {
             biped.isInSneakingPose = false;
         }
         return snapshot;
@@ -595,7 +588,7 @@ public final class AfwWildfireGenderCompat {
             return available;
         }
         initialized = true;
-        if (!FabricLoader.getInstance().isModLoaded(MOD_ID)) {
+        if (!ModList.get().isLoaded(MOD_ID)) {
             available = false;
             return false;
         }
