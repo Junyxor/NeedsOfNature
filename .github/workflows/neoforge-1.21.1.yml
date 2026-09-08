@@ -37,7 +37,19 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build
-        run: ./gradlew clean build --stacktrace --warning-mode all
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew clean build --stacktrace --warning-mode all 2>&1 | tee build.log
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: neoforge-build-log
+          path: build.log
+          if-no-files-found: warn
+          retention-days: 3
 
       - name: Upload jars
         if: success()
