@@ -43,7 +43,7 @@ public final class AfwEntityVariants {
         if (baseModelId == null || variant == null || variant.isBlank()) {
             return null;
         }
-        return Identifier.of((String)baseModelId.getNamespace(), (String)(baseModelId.getPath() + "_" + variant));
+        return new Identifier((String)baseModelId.getNamespace(), (String)(baseModelId.getPath() + "_" + variant));
     }
 }
 

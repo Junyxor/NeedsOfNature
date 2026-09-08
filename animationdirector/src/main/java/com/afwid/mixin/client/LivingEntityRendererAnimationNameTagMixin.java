@@ -25,13 +25,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value={LivingEntityRenderer.class}, priority=1500)
 public abstract class LivingEntityRendererAnimationNameTagMixin {
     @Inject(method={"hasLabel"}, at={@At(value="HEAD")}, cancellable=true)
-    private void afw$hideSameAnimationNameLabel(LivingEntity entity, double distance, CallbackInfoReturnable<Boolean> cir) {
+    private void afw$hideSameAnimationNameLabel(LivingEntity entity, CallbackInfoReturnable<Boolean> cir) {
         if (entity == null) {
             return;
         }
         UUID viewerUuid = LivingEntityRendererAnimationNameTagMixin.afw$getLocalPlayerUuid();
         if (AfwClientAnimationRuntime.shouldHideNameLabelForViewer(viewerUuid, entity.getUuid())) {
-            cir.setReturnValue((Object)false);
+            cir.setReturnValue(false);
         }
     }
 

@@ -28,7 +28,7 @@ public abstract class EntityPushAwayMixin {
         if (other == null) {
             return;
         }
-        Entity self = (Entity)this;
+        Entity self = (Entity)(Object)this;
         World class_19372 = self.getEntityWorld();
         if (!(class_19372 instanceof ServerWorld)) {
             return;

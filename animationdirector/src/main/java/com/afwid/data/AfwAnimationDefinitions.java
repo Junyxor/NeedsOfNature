@@ -50,12 +50,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Stream;
-import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
+import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.Identifier;
@@ -72,8 +72,8 @@ import org.jetbrains.annotations.Nullable;
 
 public final class AfwAnimationDefinitions {
     private static final String NORMAL_MATCH_TAG = "normal_match";
-    private static final Identifier PLAYER_ID = Identifier.of((String)"minecraft", (String)"player");
-    private static final Identifier PLAYER_SLIM_ID = Identifier.of((String)"minecraft", (String)"player_slim");
+    private static final Identifier PLAYER_ID = new Identifier((String)"minecraft", (String)"player");
+    private static final Identifier PLAYER_SLIM_ID = new Identifier((String)"minecraft", (String)"player_slim");
     private static final String INVALID_ENTITY_VARIANT = "\u0000";
     private static final Set<String> KNOWN_DEFINITION_KEYS = Set.of("actors", "animation_tags", "content_tags", "required_union_tags", "weight", "speed", "block_requirements", "water", "position_anchor_actor", "stages", "manual_peak", "liquid_gain_multiplier", "stage_seconds", "escapable");
     private static final Set<String> KNOWN_ACTOR_KEYS = Set.of("label", "entity_types", "entity_variant", "actor_tags", "actor_tags_any", "age", "activity", "prop_left", "prop_right", "injector", "receiver");
@@ -91,7 +91,7 @@ public final class AfwAnimationDefinitions {
     }
 
     public static void registerReloadListener() {
-        ResourceLoader.get((ResourceType)ResourceType.SERVER_DATA).registerReloader(Reloader.RELOADER_ID, (ResourceReloader)new Reloader());
+        ResourceManagerHelper.get(ResourceType.SERVER_DATA).registerReloadListener(new Reloader());
     }
 
     public static MatchResult match(List<Entity> selectedActorsSortedById) {
@@ -109,18 +109,18 @@ public final class AfwAnimationDefinitions {
         Definition chosen = null;
         if (!candidates.isEmpty()) {
             Definition d3;
-            int bestSpecificity = ((Definition)candidates.getFirst()).specificity();
+            int bestSpecificity = ((Definition)candidates.get(0)).specificity();
             ArrayList<Definition> topSpecificity = new ArrayList<Definition>();
             Iterator iterator = candidates.iterator();
             while (iterator.hasNext() && (d3 = (Definition)iterator.next()).specificity() == bestSpecificity) {
                 topSpecificity.add(d3);
             }
-            chosen = topSpecificity.size() == 1 ? (Definition)topSpecificity.getFirst() : AfwAnimationDefinitions.pickWeighted(topSpecificity, new Random());
+            chosen = topSpecificity.size() == 1 ? (Definition)topSpecificity.get(0) : AfwAnimationDefinitions.pickWeighted(topSpecificity, new java.util.Random());
         }
         return new MatchResult(List.copyOf(candidates), chosen);
     }
 
-    private static Definition pickWeighted(List<Definition> definitions, Random random) {
+    private static Definition pickWeighted(List<Definition> definitions, java.util.Random random) {
         if (definitions == null || definitions.isEmpty()) {
             return null;
         }
@@ -139,7 +139,7 @@ public final class AfwAnimationDefinitions {
             if (definition == null || !(roll < (running += AfwAnimationDefinitions.sanitizeWeight(definition.weight())))) continue;
             return definition;
         }
-        return definitions.getLast();
+        return definitions.get(definitions.size() - 1);
     }
 
     private static double sanitizeWeight(double raw) {
@@ -469,7 +469,7 @@ public final class AfwAnimationDefinitions {
     }
 
     private static String fallbackActorKey(Entity entity) {
-        Identifier typeId = Registries.ENTITY_TYPE.getId((Object)entity.getType());
+        Identifier typeId = Registries.ENTITY_TYPE.getId(entity.getType());
         return typeId.getPath();
     }
 
@@ -503,13 +503,14 @@ public final class AfwAnimationDefinitions {
 
     private static void reload(ResourceManager resourceManager) {
         Map<String, AnimationPackInfo> packInfoByResourcePackId = AfwAnimationDefinitions.readAnimationPackInfos(resourceManager);
-        Map resources = resourceManager.findResources("afw_animdefs", id -> id.getPath().endsWith(".json"));
+        Map<Identifier, Resource> resources = resourceManager.findResources(
+                "afw_animdefs", id -> id.getPath().endsWith(".json"));
         ArrayList<Definition> loaded = new ArrayList<Definition>();
-        for (Map.Entry entry : resources.entrySet()) {
-            Identifier fileId = (Identifier)entry.getKey();
-            String resourcePackId = ((Resource)entry.getValue()).getPackId();
+        for (Map.Entry<Identifier, Resource> entry : resources.entrySet()) {
+            Identifier fileId = entry.getKey();
+            String resourcePackId = entry.getValue().getResourcePackName();
             AnimationPackInfo packInfo = packInfoByResourcePackId.getOrDefault(resourcePackId, AfwAnimationDefinitions.fallbackPackInfo(resourcePackId));
-            try (InputStreamReader reader = new InputStreamReader(((Resource)entry.getValue()).getInputStream(), StandardCharsets.UTF_8);){
+            try (InputStreamReader reader = new InputStreamReader(entry.getValue().getInputStream(), StandardCharsets.UTF_8);){
                 JsonObject obj = JsonParser.parseReader((Reader)reader).getAsJsonObject();
                 AfwAnimationDefinitions.warnUnknownKeys(obj, fileId, "animdef", KNOWN_DEFINITION_KEYS);
                 if (!obj.has("actors")) {
@@ -578,12 +579,12 @@ public final class AfwAnimationDefinitions {
         if (resourceManager == null) {
             return out;
         }
-        try (Stream stream = resourceManager.streamResourcePacks();){
+        try (Stream<ResourcePack> stream = resourceManager.streamResourcePacks();){
             stream.forEach(pack -> {
                 if (pack == null) {
                     return;
                 }
-                String resourcePackId = pack.getId();
+                String resourcePackId = pack.getName();
                 if (resourcePackId == null || resourcePackId.isBlank()) {
                     return;
                 }
@@ -1253,7 +1254,7 @@ public final class AfwAnimationDefinitions {
         if (obj.has("stages")) {
             JsonArray stagesArr = obj.getAsJsonArray("stages");
             TreeMap<Integer, StageSpec> stageSpecs = new TreeMap<Integer, StageSpec>();
-            TreeMap stagePropsByNumber = new TreeMap();
+            TreeMap<Integer, List<AnimationStageInfo.ActorPropEntry>> stagePropsByNumber = new TreeMap<>();
             for (int i = 0; i < stagesArr.size(); ++i) {
                 JsonObject stageObj = stagesArr.get(i).getAsJsonObject();
                 AfwAnimationDefinitions.warnUnknownKeys(stageObj, fileId, "stage[" + i + "]", KNOWN_STAGE_KEYS);
@@ -1285,12 +1286,12 @@ public final class AfwAnimationDefinitions {
             for (Map.Entry entry : stageSpecs.entrySet()) {
                 int stageNumber = (Integer)entry.getKey();
                 StageSpec spec = (StageSpec)entry.getValue();
-                Identifier stageId = Identifier.of((String)defId.getNamespace(), (String)(defId.getPath() + ".p" + stageNumber));
+                Identifier stageId = new Identifier((String)defId.getNamespace(), (String)(defId.getPath() + ".p" + stageNumber));
                 List<AnimationStageInfo.ActorPropEntry> stageProps = stagePropsByNumber.getOrDefault(stageNumber, List.of());
                 Identifier playbackId = stageId;
                 if (spec.useStage != null && spec.useStage != stageNumber) {
                     if (stageSpecs.containsKey(spec.useStage)) {
-                        playbackId = Identifier.of((String)defId.getNamespace(), (String)(defId.getPath() + ".p" + spec.useStage));
+                        playbackId = new Identifier((String)defId.getNamespace(), (String)(defId.getPath() + ".p" + spec.useStage));
                     } else {
                         AnimationFramework.logSetupWarning("[AFW] use_stage '{}' in {} stage p{} points to missing stage; falling back to p{}.", spec.useStage, fileId, stageNumber, stageNumber);
                     }
@@ -1589,12 +1590,16 @@ public final class AfwAnimationDefinitions {
         if (path.endsWith(".json")) {
             path = path.substring(0, path.length() - 5);
         }
-        return Identifier.of((String)fileId.getNamespace(), (String)path);
+        return new Identifier((String)fileId.getNamespace(), (String)path);
     }
 
     public static final class Reloader
-    implements SynchronousResourceReloader {
-        static final Identifier RELOADER_ID = Identifier.of((String)"animationframework", (String)"afw_animdefs");
+    implements SynchronousResourceReloader, IdentifiableResourceReloadListener {
+        static final Identifier RELOADER_ID = new Identifier((String)"animationframework", (String)"afw_animdefs");
+
+        public Identifier getFabricId() {
+            return RELOADER_ID;
+        }
 
         public void reload(ResourceManager manager) {
             AfwAnimationDefinitions.reload(manager);
@@ -1631,8 +1636,7 @@ public final class AfwAnimationDefinitions {
         }
 
         private boolean matchesAnimationTags(Set<String> requiredAnimationTags) {
-            Set<Object> required;
-            Set<Object> set = required = requiredAnimationTags == null ? Set.of() : requiredAnimationTags;
+            Set<String> required = requiredAnimationTags == null ? Set.of() : requiredAnimationTags;
             if (required.isEmpty()) {
                 return this.animationTags == null || this.animationTags.isEmpty() || this.animationTags.contains(AfwAnimationDefinitions.NORMAL_MATCH_TAG);
             }
@@ -1656,7 +1660,7 @@ public final class AfwAnimationDefinitions {
 
     public record ActorConstraint(Set<Identifier> entityTypes, @Nullable String entityVariant, Set<String> requiredTags, Set<String> requiredTagsAny, String label, AgeRequirement ageRequirement, ActorActivity activity, @Nullable Identifier propLeftItemId, @Nullable Identifier propRightItemId) {
         public boolean matches(Entity e) {
-            Identifier typeId = Registries.ENTITY_TYPE.getId((Object)e.getType());
+            Identifier typeId = Registries.ENTITY_TYPE.getId(e.getType());
             if (!this.entityTypes.isEmpty() && !this.entityTypes.contains(typeId)) {
                 return false;
             }

@@ -25,22 +25,21 @@ public enum AfwDebugChatMode {
         if (category == AfwDebugChatCategory.ALWAYS) {
             return true;
         }
-        return switch (this.ordinal()) {
-            default -> throw new MatchException(null, null);
-            case 0 -> true;
-            case 1 -> {
+        return switch (this) {
+            case ALL -> true;
+            case SETUP_WARNINGS_ERRORS -> {
                 if (category == AfwDebugChatCategory.SETUP || category == AfwDebugChatCategory.WARNING || category == AfwDebugChatCategory.ERROR) {
                     yield true;
                 }
                 yield false;
             }
-            case 2 -> {
+            case SETUP_ERRORS -> {
                 if (category == AfwDebugChatCategory.SETUP || category == AfwDebugChatCategory.ERROR) {
                     yield true;
                 }
                 yield false;
             }
-            case 3 -> category == AfwDebugChatCategory.ERROR;
+            case ERRORS_ONLY -> category == AfwDebugChatCategory.ERROR;
         };
     }
 

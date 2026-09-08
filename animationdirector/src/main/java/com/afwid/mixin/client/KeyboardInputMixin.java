@@ -15,9 +15,6 @@
 package com.afwid.mixin.client;
 
 import com.afwid.client.runtime.AfwClientAnimationRuntime;
-import com.afwid.mixin.client.InputAccessor;
-import net.minecraft.util.PlayerInput;
-import net.minecraft.util.math.Vec2f;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.input.KeyboardInput;
 import net.minecraft.client.input.Input;
@@ -35,12 +32,15 @@ public abstract class KeyboardInputMixin {
             return;
         }
         if (AfwClientAnimationRuntime.isActorPendingOrActive(client.player.getUuid())) {
-            Input self = (Input)this;
-            self.playerInput = new PlayerInput(false, false, false, false, false, false, false);
-            if (self instanceof InputAccessor) {
-                InputAccessor accessor = (InputAccessor)self;
-                accessor.afw$setMovementVector(Vec2f.ZERO);
-            }
+            Input self = (Input)(Object)this;
+            self.movementForward = 0.0f;
+            self.movementSideways = 0.0f;
+            self.pressingForward = false;
+            self.pressingBack = false;
+            self.pressingLeft = false;
+            self.pressingRight = false;
+            self.jumping = false;
+            self.sneaking = false;
             ci.cancel();
         }
     }

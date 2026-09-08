@@ -24,11 +24,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(value={TargetPredicate.class})
 public abstract class TargetPredicateMixin {
     @Inject(method={"test"}, at={@At(value="HEAD")}, cancellable=true)
-    private void afw$ignoreAfwActors(ServerWorld world, LivingEntity tester, LivingEntity target, CallbackInfoReturnable<Boolean> cir) {
-        if (!AfwServerAnimationController.shouldIgnoreAttackers(world, target)) {
+    private void afw$ignoreAfwActors(LivingEntity tester, LivingEntity target, CallbackInfoReturnable<Boolean> cir) {
+        if (!(target.getEntityWorld() instanceof ServerWorld world)
+                || !AfwServerAnimationController.shouldIgnoreAttackers(world, target)) {
             return;
         }
-        cir.setReturnValue((Object)false);
+        cir.setReturnValue(false);
     }
 }
 

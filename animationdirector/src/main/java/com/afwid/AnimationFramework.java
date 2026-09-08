@@ -40,6 +40,7 @@ import com.afwid.network.DebugStopAnimationC2SPayload;
 import com.afwid.network.StartAnimationS2CPayload;
 import com.afwid.network.StopAllAnimationsS2CPayload;
 import com.afwid.network.StopAnimationS2CPayload;
+import com.afwid.network.AfwServerNetworking;
 import com.afwid.server.AfwServerAnimationController;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -52,10 +53,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.server.PlayerConfigEntry;
 import net.minecraft.util.Formatting;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.mob.MobEntity;
@@ -64,7 +63,6 @@ import net.minecraft.text.Text;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.MutableText;
-import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,90 +76,93 @@ implements ModInitializer {
     private static final List<PendingSetupChatMessage> PENDING_SETUP_CHAT = new ArrayList<PendingSetupChatMessage>();
 
     public void onInitialize() {
-        PayloadTypeRegistry.playC2S().register(DebugStartAnimationC2SPayload.ID, DebugStartAnimationC2SPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(DebugStopAllAnimationsC2SPayload.ID, DebugStopAllAnimationsC2SPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(DebugStopAnimationC2SPayload.ID, DebugStopAnimationC2SPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(DebugChatPreferenceC2SPayload.ID, DebugChatPreferenceC2SPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(DebugJoinAnimationC2SPayload.ID, DebugJoinAnimationC2SPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(DebugAdvanceStageC2SPayload.ID, DebugAdvanceStageC2SPayload.CODEC);
-        PayloadTypeRegistry.playC2S().register(AdjustAnimationSpeedC2SPayload.ID, AdjustAnimationSpeedC2SPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(StartAnimationS2CPayload.ID, StartAnimationS2CPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(AdvanceAnimationStageS2CPayload.ID, AdvanceAnimationStageS2CPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(StopAllAnimationsS2CPayload.ID, StopAllAnimationsS2CPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(StopAnimationS2CPayload.ID, StopAnimationS2CPayload.CODEC);
-        PayloadTypeRegistry.playS2C().register(AnimationSpeedUpdateS2CPayload.ID, AnimationSpeedUpdateS2CPayload.CODEC);
         AfwAnimationDefinitions.registerReloadListener();
         AfwServerAnimationController.init();
-        ServerPlayNetworking.registerGlobalReceiver(DebugStartAnimationC2SPayload.ID, (payload, context) -> context.server().execute(() -> {
-            ServerPlayerEntity player = context.player();
+        ServerPlayNetworking.registerGlobalReceiver(DebugStartAnimationC2SPayload.ID, (server, player, handler, buf, responseSender) -> {
+            DebugStartAnimationC2SPayload payload = DebugStartAnimationC2SPayload.read(buf);
+            server.execute(() -> {
             if (!AnimationFramework.requireDebugControlPermission(player, "start")) {
                 return;
             }
             AfwDamageBehavior behavior = AfwDamageBehavior.fromId(payload.damageBehaviorId(), AfwDamageBehavior.STOP_ON_DAMAGE);
             AnimationFramework.handleDebugStartRequest(player, payload.actorEntityIds(), behavior, payload.ignoreAttackers(), payload.anchorEntityId());
-        }));
-        ServerPlayNetworking.registerGlobalReceiver(DebugStopAllAnimationsC2SPayload.ID, (payload, context) -> context.server().execute(() -> {
-            ServerPlayerEntity player = context.player();
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(DebugStopAllAnimationsC2SPayload.ID, (server, player, handler, buf, responseSender) -> {
+            DebugStopAllAnimationsC2SPayload.read(buf);
+            server.execute(() -> {
             if (!AnimationFramework.requireDebugControlPermission(player, "stop_all")) {
                 return;
             }
-            ServerWorld patt0$temp = player.getEntityWorld();
+            ServerWorld patt0$temp = (ServerWorld)player.getWorld();
             if (!(patt0$temp instanceof ServerWorld)) {
                 return;
             }
             ServerWorld world = patt0$temp;
             long now = world.getTime();
             long stopTick = now + 1L;
-            for (ServerPlayerEntity p : context.server().getPlayerManager().getPlayerList()) {
+            for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
                 if (p.getEntityWorld() != world) continue;
-                ServerPlayNetworking.send((ServerPlayerEntity)p, (CustomPayload)new StopAllAnimationsS2CPayload(stopTick));
+                AfwServerNetworking.send(p, new StopAllAnimationsS2CPayload(stopTick));
             }
             AfwServerAnimationController.clearAllInstancesInWorld(world);
             AnimationFramework.sendDebugChat(player, AfwDebugChatCategory.ALWAYS, (Text)Text.translatable((String)"debug.animationframework.stop_all_broadcast_queued"), true);
-        }));
-        ServerPlayNetworking.registerGlobalReceiver(DebugStopAnimationC2SPayload.ID, (payload, context) -> context.server().execute(() -> {
-            ServerPlayerEntity player = context.player();
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(DebugStopAnimationC2SPayload.ID, (server, player, handler, buf, responseSender) -> {
+            DebugStopAnimationC2SPayload payload = DebugStopAnimationC2SPayload.read(buf);
+            server.execute(() -> {
             if (!AnimationFramework.requireDebugControlPermission(player, "stop_instance")) {
                 return;
             }
             AfwServerAnimationController.stopInstanceAndBroadcast(player, payload.instanceId());
-        }));
-        ServerPlayNetworking.registerGlobalReceiver(DebugChatPreferenceC2SPayload.ID, (payload, context) -> context.server().execute(() -> {
-            UUID uuid = context.player().getUuid();
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(DebugChatPreferenceC2SPayload.ID, (server, player, handler, buf, responseSender) -> {
+            DebugChatPreferenceC2SPayload payload = DebugChatPreferenceC2SPayload.read(buf);
+            server.execute(() -> {
+            UUID uuid = player.getUuid();
             AfwDebugChatMode mode = AfwDebugChatMode.fromId(payload.modeId(), AfwDebugChatMode.SETUP_ERRORS);
             DEBUG_CHAT_PREF.put(uuid, mode);
-        }));
-        ServerPlayNetworking.registerGlobalReceiver(DebugJoinAnimationC2SPayload.ID, (payload, context) -> context.server().execute(() -> {
-            ServerPlayerEntity player = context.player();
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(DebugJoinAnimationC2SPayload.ID, (server, player, handler, buf, responseSender) -> {
+            DebugJoinAnimationC2SPayload payload = DebugJoinAnimationC2SPayload.read(buf);
+            server.execute(() -> {
             if (!AnimationFramework.requireDebugControlPermission(player, "join")) {
                 return;
             }
             AnimationFramework.handleDebugJoinRequest(player, payload.instanceId(), payload.actorEntityIds());
-        }));
-        ServerPlayNetworking.registerGlobalReceiver(DebugAdvanceStageC2SPayload.ID, (payload, context) -> context.server().execute(() -> {
-            ServerPlayerEntity player = context.player();
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(DebugAdvanceStageC2SPayload.ID, (server, player, handler, buf, responseSender) -> {
+            DebugAdvanceStageC2SPayload payload = DebugAdvanceStageC2SPayload.read(buf);
+            server.execute(() -> {
             if (!AnimationFramework.requireDebugControlPermission(player, "advance_stage")) {
                 return;
             }
-            ServerWorld patt0$temp = player.getEntityWorld();
+            ServerWorld patt0$temp = (ServerWorld)player.getWorld();
             if (!(patt0$temp instanceof ServerWorld)) {
                 return;
             }
             ServerWorld world = patt0$temp;
             AfwServerAnimationController.advanceStage(world, payload.instanceId());
-        }));
-        ServerPlayNetworking.registerGlobalReceiver(AdjustAnimationSpeedC2SPayload.ID, (payload, context) -> context.server().execute(() -> {
-            ServerPlayerEntity player = context.player();
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(AdjustAnimationSpeedC2SPayload.ID, (server, player, handler, buf, responseSender) -> {
+            AdjustAnimationSpeedC2SPayload payload = AdjustAnimationSpeedC2SPayload.read(buf);
+            server.execute(() -> {
             if (!AnimationFramework.requireDebugControlPermission(player, "adjust_speed")) {
                 return;
             }
-            ServerWorld patt0$temp = player.getEntityWorld();
+            ServerWorld patt0$temp = (ServerWorld)player.getWorld();
             if (!(patt0$temp instanceof ServerWorld)) {
                 return;
             }
             ServerWorld world = patt0$temp;
             AfwServerAnimationController.adjustSpeed(world, payload.instanceId(), payload.multiplier(), player);
-        }));
+            });
+        });
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> server.execute(() -> AfwServerAnimationController.sendActiveInstancesToPlayer(handler.player)));
         ServerTickEvents.END_SERVER_TICK.register(AnimationFramework::flushPendingSetupChat);
         LOGGER.info("[{}] Initialized", (Object)MOD_ID);
@@ -200,7 +201,7 @@ implements ModInitializer {
         if (server == null) {
             return;
         }
-        List players = server.getPlayerManager().getPlayerList();
+        List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
         if (players.isEmpty()) {
             return;
         }
@@ -271,19 +272,17 @@ implements ModInitializer {
             return Formatting.WHITE;
         }
         return switch (category) {
-            default -> throw new MatchException(null, null);
-            case AfwDebugChatCategory.ALWAYS -> Formatting.DARK_GRAY;
-            case AfwDebugChatCategory.SETUP -> Formatting.YELLOW;
-            case AfwDebugChatCategory.WARNING -> Formatting.LIGHT_PURPLE;
-            case AfwDebugChatCategory.ERROR -> Formatting.RED;
-            case AfwDebugChatCategory.INFO -> Formatting.WHITE;
+            case ALWAYS -> Formatting.DARK_GRAY;
+            case SETUP -> Formatting.YELLOW;
+            case WARNING -> Formatting.LIGHT_PURPLE;
+            case ERROR -> Formatting.RED;
+            case INFO -> Formatting.WHITE;
         };
     }
 
     private static boolean requireDebugControlPermission(ServerPlayerEntity player, String action) {
-        ServerWorld world;
-        ServerWorld class_32182;
-        if (player != null && (class_32182 = player.getEntityWorld()) instanceof ServerWorld && (world = class_32182).getServer().getPlayerManager().isOperator(new PlayerConfigEntry(player.getGameProfile()))) {
+        if (player != null && player.getServerWorld().getServer().getPlayerManager()
+                .isOperator(player.getGameProfile())) {
             return true;
         }
         if (player != null) {
@@ -312,9 +311,9 @@ implements ModInitializer {
         resolved.sort(Comparator.comparingInt(Entity::getId));
         AfwDamageBehavior safeBehavior = damageBehavior == null ? AfwDamageBehavior.STOP_ON_DAMAGE : damageBehavior;
         UUID anchorUuid = anchorEntity != null ? anchorEntity.getUuid() : null;
-        AfwServerAnimationController.MatchedStartRequest start = AfwServerAnimationController.startEligibleMatchedNow(player.getEntityWorld(), player, resolved, Set.of(), safeBehavior, ignoreAttackers, anchorUuid, Map.of(), true);
+        AfwServerAnimationController.MatchedStartRequest start = AfwServerAnimationController.startEligibleMatchedNow(player.getServerWorld(), player, resolved, Set.of(), safeBehavior, ignoreAttackers, anchorUuid, Map.of(), true);
         String chosenStr = start == null ? "(none)" : start.animationId().getPath();
-        List<Object> actorKeys = start == null ? List.of() : start.actorKeys();
+        List<String> actorKeys = start == null ? List.of() : start.actorKeys();
         String keysStr = actorKeys.isEmpty() ? "none" : actorKeys.toString();
         MutableText msg = Text.translatable((String)"debug.animationframework.server_eval", (Object[])new Object[]{resolved.size(), chosenStr, keysStr});
         AnimationFramework.sendDebugChat(player, AfwDebugChatCategory.ALWAYS, (Text)msg, true);
@@ -328,7 +327,7 @@ implements ModInitializer {
         if (player == null || requestedActorIds == null || requestedActorIds.isEmpty()) {
             return;
         }
-        ServerWorld class_32182 = player.getEntityWorld();
+        ServerWorld class_32182 = player.getServerWorld();
         if (!(class_32182 instanceof ServerWorld)) {
             return;
         }

@@ -49,7 +49,7 @@ import net.minecraft.sound.SoundEvent;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.registry.Registries;
-import net.minecraft.item.ItemDisplayContext;
+import net.minecraft.client.render.model.json.ModelTransformationMode;
 import org.jetbrains.annotations.Nullable;
 
 public final class AfwClientAnimationRuntime {
@@ -84,7 +84,7 @@ public final class AfwClientAnimationRuntime {
         List<AnimationStageInfo> safeStages = stages == null ? List.of() : List.copyOf(stages);
         AfwClientAnimationRuntime.rememberStageMeta(animationId, safeStages);
         AfwAnimationAssetDiagnostics.validateStartPayload(animationId, safeKeys, safeStages);
-        UUID anchorUuid = actorUuids.isEmpty() ? null : actorUuids.getFirst();
+        UUID anchorUuid = actorUuids.isEmpty() ? null : actorUuids.get(0);
         LockedOrientation locked = lockOrientation ? new LockedOrientation(lockedYaw, lockedHeadYaw, lockedPitch) : null;
         PENDING_STARTS.add(new PendingStart(instanceId, animationId, List.copyOf(actorUuids), safeKeys, safeStages, startTick, AfwClientAnimationRuntime.sanitizeSpeed(speed), anchorUuid, lockOrientation, locked, AfwClientAnimationRuntime.sanitizeCameraOrbitTarget(cameraOrbitTarget)));
     }
@@ -295,17 +295,17 @@ public final class AfwClientAnimationRuntime {
         }
         if (!INSTANCES.isEmpty()) {
             ArrayList<UUID> completed = new ArrayList<UUID>();
-            block4: for (InstanceState state3 : INSTANCES.values()) {
-                if (now < state3.startTick) continue;
-                while (state3.manualAdvanceRequests > 0) {
-                    --state3.manualAdvanceRequests;
-                    if (state3.advanceStage(now)) {
-                        Double queued = PENDING_SPEED_UPDATES.remove(state3.instanceId);
+            block4: for (InstanceState instanceState : INSTANCES.values()) {
+                if (now < instanceState.startTick) continue;
+                while (instanceState.manualAdvanceRequests > 0) {
+                    --instanceState.manualAdvanceRequests;
+                    if (instanceState.advanceStage(now)) {
+                        Double queued = PENDING_SPEED_UPDATES.remove(instanceState.instanceId);
                         if (queued == null) continue;
-                        AfwClientAnimationRuntime.applySpeedToState(state3, queued, now);
+                        AfwClientAnimationRuntime.applySpeedToState(instanceState, queued, now);
                         continue;
                     }
-                    completed.add(state3.instanceId);
+                    completed.add(instanceState.instanceId);
                     continue block4;
                 }
             }
@@ -693,7 +693,8 @@ public final class AfwClientAnimationRuntime {
     }
 
     private static Vec3d sanitizeCameraOrbitTarget(Vec3d target) {
-        return target != null && target.isFinite() ? target : null;
+        return target != null && Double.isFinite(target.x) && Double.isFinite(target.y)
+                && Double.isFinite(target.z) ? target : null;
     }
 
     private static long scaledDuration(long duration, double speed) {
@@ -794,7 +795,7 @@ public final class AfwClientAnimationRuntime {
                     rebuilt.put(actorUuid, anchor);
                     continue;
                 }
-                Entity entity = client.world.getEntity(actorUuid);
+                Entity entity = findEntity(client.world, actorUuid);
                 if (!(entity instanceof LivingEntity)) continue;
                 LivingEntity living = (LivingEntity)entity;
                 rebuilt.put(actorUuid, new LockedOrientation(living.getBodyYaw(), living.getHeadYaw(), living.getPitch()));
@@ -808,7 +809,7 @@ public final class AfwClientAnimationRuntime {
         if (uuid == null || client == null || client.world == null) {
             return null;
         }
-        Entity entity = client.world.getEntity(uuid);
+        Entity entity = findEntity(client.world, uuid);
         if (entity instanceof LivingEntity) {
             LivingEntity living = (LivingEntity)entity;
             return new LockedOrientation(living.getBodyYaw(), living.getHeadYaw(), living.getPitch());
@@ -898,12 +899,12 @@ public final class AfwClientAnimationRuntime {
         if (world == null || state == null) {
             return null;
         }
-        if (state.anchorUuid != null && (entity = world.getEntity(state.anchorUuid)) instanceof LivingEntity) {
+        if (state.anchorUuid != null && (entity = findEntity(world, state.anchorUuid)) instanceof LivingEntity) {
             LivingEntity living = (LivingEntity)entity;
             return living;
         }
         for (UUID actorId : state.actorUuids) {
-            Entity entity2 = world.getEntity(actorId);
+            Entity entity2 = findEntity(world, actorId);
             if (!(entity2 instanceof LivingEntity)) continue;
             LivingEntity living = (LivingEntity)entity2;
             return living;
@@ -962,18 +963,18 @@ public final class AfwClientAnimationRuntime {
             return null;
         }
         UUID actorId = state.actorUuids.get(index);
-        Entity entity = world.getEntity(actorId);
+        Entity entity = findEntity(world, actorId);
         if (!(entity instanceof LivingEntity)) {
             return null;
         }
         LivingEntity anchor = (LivingEntity)entity;
-        Identifier typeId = Registries.ENTITY_TYPE.getId((Object)anchor.getType());
+        Identifier typeId = Registries.ENTITY_TYPE.getId(anchor.getType());
         String actorKey = index < state.actorKeys.size() ? state.actorKeys.get(index) : null;
         SoundTrackCandidate candidate = AfwClientAnimationRuntime.resolveSoundCandidateForParams(stageAnimationId, actorKey, typeId, true);
         if (candidate != null) {
             return candidate;
         }
-        if (anchor instanceof PlayerEntity && (candidate = AfwClientAnimationRuntime.resolveSoundCandidateForParams(stageAnimationId, "player", playerType = Identifier.of((String)"minecraft", (String)"player"), false)) != null) {
+        if (anchor instanceof PlayerEntity && (candidate = AfwClientAnimationRuntime.resolveSoundCandidateForParams(stageAnimationId, "player", playerType = new Identifier((String)"minecraft", (String)"player"), false)) != null) {
             return candidate;
         }
         return null;
@@ -1124,7 +1125,20 @@ public final class AfwClientAnimationRuntime {
         }
         SoundEvent soundEvent = Registries.SOUND_EVENT.containsId(soundId) ? (SoundEvent)Registries.SOUND_EVENT.get(soundId) : SoundEvent.of((Identifier)soundId);
         SoundCategory category = anchor instanceof PlayerEntity ? SoundCategory.PLAYERS : SoundCategory.NEUTRAL;
-        world.playSoundFromEntityClient((Entity)anchor, soundEvent, category, volume, pitch);
+        world.playSound(anchor.getX(), anchor.getY(), anchor.getZ(), soundEvent,
+                category, volume, pitch, false);
+    }
+
+    private static Entity findEntity(ClientWorld world, UUID uuid) {
+        if (world == null || uuid == null) {
+            return null;
+        }
+        for (Entity entity : world.getEntities()) {
+            if (uuid.equals(entity.getUuid())) {
+                return entity;
+            }
+        }
+        return null;
     }
 
     public record LockedOrientation(float bodyYaw, float headYaw, float pitch) {
@@ -1226,13 +1240,13 @@ public final class AfwClientAnimationRuntime {
     }
 
     public static enum PropSlot {
-        LEFT("propleft", ItemDisplayContext.THIRD_PERSON_LEFT_HAND),
-        RIGHT("propright", ItemDisplayContext.THIRD_PERSON_RIGHT_HAND);
+        LEFT("propleft", ModelTransformationMode.THIRD_PERSON_LEFT_HAND),
+        RIGHT("propright", ModelTransformationMode.THIRD_PERSON_RIGHT_HAND);
 
         private final String boneName;
-        private final ItemDisplayContext displayContext;
+        private final ModelTransformationMode displayContext;
 
-        private PropSlot(String boneName, ItemDisplayContext displayContext) {
+        private PropSlot(String boneName, ModelTransformationMode displayContext) {
             this.boneName = boneName;
             this.displayContext = displayContext;
         }
@@ -1241,7 +1255,7 @@ public final class AfwClientAnimationRuntime {
             return this.boneName;
         }
 
-        public ItemDisplayContext displayContext() {
+        public ModelTransformationMode displayContext() {
             return this.displayContext;
         }
     }

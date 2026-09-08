@@ -113,7 +113,8 @@ public final class AfwFirstPersonLookConstraint {
             return null;
         }
         Vec3d normalized = vector.normalize();
-        if (!normalized.isFinite()) {
+        if (!Double.isFinite(normalized.x) || !Double.isFinite(normalized.y)
+                || !Double.isFinite(normalized.z)) {
             return null;
         }
         return normalized;

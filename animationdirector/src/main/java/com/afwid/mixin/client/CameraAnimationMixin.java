@@ -48,6 +48,7 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.client.render.Camera;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -96,15 +97,15 @@ public abstract class CameraAnimationMixin {
     protected abstract void setRotation(float var1, float var2);
 
     @Shadow
-    protected abstract void moveBy(float var1, float var2, float var3);
+    protected abstract void moveBy(double var1, double var2, double var3);
 
     @Shadow
-    private float clipToSpace(float startingDistance) {
+    private double clipToSpace(double startingDistance) {
         return startingDistance;
     }
 
     @Inject(method={"update"}, at={@At(value="TAIL")})
-    private void afw$lockFirstPersonCameraToAnimatedPose(World area, Entity focusedEntity, boolean thirdPerson, boolean inverseView, float tickDelta, CallbackInfo ci) {
+    private void afw$lockFirstPersonCameraToAnimatedPose(BlockView area, Entity focusedEntity, boolean thirdPerson, boolean inverseView, float tickDelta, CallbackInfo ci) {
         Vec3d targetLook;
         boolean replacingActiveInstance;
         if (!(focusedEntity instanceof PlayerEntity)) {
@@ -176,16 +177,8 @@ public abstract class CameraAnimationMixin {
         Vec3d constrainedLook = AfwFirstPersonLookConstraint.constrain(desiredLook, posedPose, afw$lastConstrainedLook);
         float constrainedYaw = AfwFirstPersonLookConstraint.toMinecraftYaw(constrainedLook, desiredYaw);
         float constrainedPitch = AfwFirstPersonLookConstraint.toMinecraftPitch(constrainedLook);
-        focusedPlayer.lastYaw = constrainedYaw;
-        focusedPlayer.lastPitch = constrainedPitch;
-        focusedPlayer.setYaw(constrainedYaw);
-        focusedPlayer.setPitch(constrainedPitch);
-        focusedPlayer.lastHeadYaw = constrainedYaw;
-        focusedPlayer.headYaw = constrainedYaw;
-        focusedPlayer.setHeadYaw(constrainedYaw);
-        focusedPlayer.lastBodyYaw = constrainedYaw;
-        focusedPlayer.bodyYaw = constrainedYaw;
-        focusedPlayer.setBodyYaw(constrainedYaw);
+        // Rotate only the animation camera. Mutating the focused player here
+        // made mouse-look rotate the replacement model as well.
         this.setRotation(constrainedYaw, constrainedPitch);
         Vec3d desiredCameraPos = posedPose.worldPos().add(constrainedLook.multiply(0.2));
         this.setPos(AfwFirstPersonCameraCollision.resolve((CollisionView)area, desiredCameraPos));
@@ -211,10 +204,10 @@ public abstract class CameraAnimationMixin {
 
     private static Vec3d afw$resolveStartAlignmentTargetLook(AfwAnimatedCameraPoseTracker.PoseSample pose) {
         Vec3d targetLook = pose.headForward();
-        if (targetLook == null || targetLook.lengthSquared() < 1.0E-8 || !targetLook.isFinite()) {
+        if (targetLook == null || targetLook.lengthSquared() < 1.0E-8 || !afw$isFinite(targetLook)) {
             targetLook = pose.bodyForward();
         }
-        if (targetLook == null || targetLook.lengthSquared() < 1.0E-8 || !targetLook.isFinite()) {
+        if (targetLook == null || targetLook.lengthSquared() < 1.0E-8 || !afw$isFinite(targetLook)) {
             return null;
         }
         return targetLook.normalize();
@@ -230,14 +223,14 @@ public abstract class CameraAnimationMixin {
         if (orbitTarget != null) {
             CameraAnimationMixin.afw$clearBodyOrbitTarget();
             Vec3d horizontalDelta = new Vec3d(orbitTarget.x - focusPos.x, 0.0, orbitTarget.z - focusPos.z);
-            if (horizontalDelta.isFinite() && horizontalDelta.lengthSquared() >= 1.0E-8) {
+            if (afw$isFinite(horizontalDelta) && horizontalDelta.lengthSquared() >= 1.0E-8) {
                 adjustedFocus = focusPos.add(horizontalDelta);
             }
         } else {
             Vec3d bodyTarget = CameraAnimationMixin.afw$resolveBodyOrbitTarget(actorUuid, activeInstanceId, activeAnimationId, nowTick);
             if (bodyTarget != null) {
                 adjustedFocus = CameraAnimationMixin.afw$resolveSmoothedOrbitTarget(activeInstanceId, activeAnimationId, focusPos, bodyTarget, nowTick, tickDelta);
-            } else if (afw$currentSmoothedOrbitTarget != null && afw$currentSmoothedOrbitTarget.isFinite()) {
+            } else if (afw$currentSmoothedOrbitTarget != null && afw$isFinite(afw$currentSmoothedOrbitTarget)) {
                 adjustedFocus = afw$currentSmoothedOrbitTarget;
             } else if (activeInstanceId == null) {
                 CameraAnimationMixin.afw$clearOrbitSmoothing();
@@ -250,7 +243,7 @@ public abstract class CameraAnimationMixin {
     }
 
     private static Vec3d afw$resolveClearThirdPersonFocus(World world, Vec3d desiredFocus) {
-        if (world == null || desiredFocus == null || !desiredFocus.isFinite()) {
+        if (world == null || desiredFocus == null || !afw$isFinite(desiredFocus)) {
             return desiredFocus;
         }
         if (CameraAnimationMixin.afw$isThirdPersonFocusClear(world, desiredFocus)) {
@@ -274,7 +267,7 @@ public abstract class CameraAnimationMixin {
     }
 
     private static boolean afw$isThirdPersonFocusClear(World world, Vec3d focus) {
-        if (world == null || focus == null || !focus.isFinite()) {
+        if (world == null || focus == null || !afw$isFinite(focus)) {
             return true;
         }
         Box focusBox = Box.of((Vec3d)focus, (double)0.25, (double)0.25, (double)0.25);
@@ -337,7 +330,7 @@ public abstract class CameraAnimationMixin {
             return null;
         }
         Vec3d bodyPos = sample.bodyWorldPos();
-        if (bodyPos == null || !bodyPos.isFinite()) {
+        if (bodyPos == null || !afw$isFinite(bodyPos)) {
             return null;
         }
         afw$bodyOrbitTarget = bodyPos;
@@ -346,7 +339,7 @@ public abstract class CameraAnimationMixin {
 
     private static Vec3d afw$resolveSmoothedOrbitTarget(UUID activeInstanceId, Identifier activeAnimationId, Vec3d fallbackStart, Vec3d desiredTarget, long nowTick, float tickDelta) {
         boolean targetChanged;
-        if (desiredTarget == null || !desiredTarget.isFinite()) {
+        if (desiredTarget == null || !afw$isFinite(desiredTarget)) {
             return fallbackStart;
         }
         boolean bl = targetChanged = afw$orbitSmoothTarget == null || afw$orbitSmoothTarget.squaredDistanceTo(desiredTarget) >= 1.0E-6;
@@ -405,6 +398,11 @@ public abstract class CameraAnimationMixin {
         CameraAnimationMixin.afw$clearBodyOrbitTarget();
         CameraAnimationMixin.afw$clearOrbitSmoothing();
         afw$wasFirstPersonLastFrame = firstPerson;
+    }
+    @Unique
+    private static boolean afw$isFinite(Vec3d value) {
+        return value != null && Double.isFinite(value.x)
+                && Double.isFinite(value.y) && Double.isFinite(value.z);
     }
 }
 

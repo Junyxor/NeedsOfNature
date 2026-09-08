@@ -42,7 +42,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
+import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.util.Formatting;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -55,7 +56,7 @@ import net.minecraft.resource.SynchronousResourceReloader;
 import org.jetbrains.annotations.Nullable;
 
 public final class AfwAnimationAssetDiagnostics {
-    private static final Identifier RELOADER_ID = Identifier.of((String)"animationframework", (String)"afw_animation_asset_diagnostics");
+    private static final Identifier RELOADER_ID = new Identifier((String)"animationframework", (String)"afw_animation_asset_diagnostics");
     private static final double LENGTH_WARNING_TOLERANCE_SECONDS = 0.05;
     private static volatile Map<Identifier, AnimationAssetLength> LENGTHS_BY_RESOURCE = Map.of();
     private static final Set<String> WARNED_MISMATCHES = new LinkedHashSet<String>();
@@ -66,7 +67,7 @@ public final class AfwAnimationAssetDiagnostics {
     }
 
     public static void registerReloadListener() {
-        ResourceLoader.get((ResourceType)ResourceType.CLIENT_RESOURCES).registerReloader(RELOADER_ID, (ResourceReloader)new Reloader());
+        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new Reloader());
     }
 
     public static void validateLoadedDefinitionsOnce() {
@@ -88,7 +89,7 @@ public final class AfwAnimationAssetDiagnostics {
         if (animationId == null || stages == null || stages.isEmpty() || LENGTHS_BY_RESOURCE.isEmpty()) {
             return;
         }
-        List<Object> safeActorKeys = actorKeys == null ? List.of() : actorKeys;
+        List<String> safeActorKeys = actorKeys == null ? List.of() : actorKeys;
         for (AnimationStageInfo stage : stages) {
             if (stage == null) continue;
             if (safeActorKeys.isEmpty()) {
@@ -221,19 +222,20 @@ public final class AfwAnimationAssetDiagnostics {
     }
 
     private static void reload(ResourceManager manager) {
-        Map resources = manager.findResources("geckolib/animations", id -> id.getPath().endsWith(".animation.json"));
-        ArrayList entries = new ArrayList(resources.entrySet());
-        entries.sort(Comparator.comparing(e -> ((Identifier)e.getKey()).toString()));
+        Map<Identifier, Resource> resources = manager.findResources(
+                "animations", id -> id.getPath().endsWith(".animation.json"));
+        ArrayList<Map.Entry<Identifier, Resource>> entries = new ArrayList<>(resources.entrySet());
+        entries.sort(Comparator.comparing(e -> e.getKey().toString()));
         LinkedHashMap<Identifier, AnimationAssetLength> loaded = new LinkedHashMap<Identifier, AnimationAssetLength>();
-        for (Map.Entry entry : entries) {
-            Identifier fileId = (Identifier)entry.getKey();
+        for (Map.Entry<Identifier, Resource> entry : entries) {
+            Identifier fileId = entry.getKey();
             Identifier animationResource = AfwAnimationAssetDiagnostics.animationIdFromPath(fileId);
             if (animationResource == null) continue;
-            try (InputStreamReader reader = new InputStreamReader(((Resource)entry.getValue()).getInputStream(), StandardCharsets.UTF_8);){
+            try (InputStreamReader reader = new InputStreamReader(entry.getValue().getInputStream(), StandardCharsets.UTF_8);){
                 double lengthSeconds;
                 JsonObject root = JsonParser.parseReader((Reader)reader).getAsJsonObject();
                 JsonObject animationsObj = root.has("animations") && root.get("animations").isJsonObject() ? root.getAsJsonObject("animations") : null;
-                if (animationsObj == null || animationsObj.isEmpty()) continue;
+                if (animationsObj == null || animationsObj.size() == 0) continue;
                 Map.Entry firstAnimation = (Map.Entry)animationsObj.entrySet().iterator().next();
                 String animationKey = (String)firstAnimation.getKey();
                 JsonElement animationEl = (JsonElement)firstAnimation.getValue();
@@ -300,13 +302,12 @@ public final class AfwAnimationAssetDiagnostics {
 
     private static Identifier animationIdFromPath(Identifier fileId) {
         String path = fileId.getPath();
-        String prefix = "geckolib/animations/";
+        String prefix = "animations/";
         String suffix = ".animation.json";
         if (!path.startsWith(prefix) || !path.endsWith(suffix)) {
             return null;
         }
-        String animPath = path.substring(prefix.length(), path.length() - suffix.length());
-        return Identifier.of((String)fileId.getNamespace(), (String)animPath);
+        return fileId;
     }
 
     private static String formatSeconds(double seconds) {
@@ -314,7 +315,11 @@ public final class AfwAnimationAssetDiagnostics {
     }
 
     public static final class Reloader
-    implements SynchronousResourceReloader {
+    implements SynchronousResourceReloader, IdentifiableResourceReloadListener {
+        public Identifier getFabricId() {
+            return RELOADER_ID;
+        }
+
         public void reload(ResourceManager manager) {
             AfwAnimationAssetDiagnostics.reload(manager);
         }

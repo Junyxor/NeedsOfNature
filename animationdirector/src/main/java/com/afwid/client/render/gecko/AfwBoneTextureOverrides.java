@@ -31,7 +31,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import net.fabricmc.fabric.api.resource.v1.ResourceLoader;
+import net.fabricmc.fabric.api.resource.IdentifiableResourceReloadListener;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.minecraft.util.Identifier;
 import net.minecraft.resource.ResourceType;
 import net.minecraft.resource.Resource;
@@ -44,57 +45,61 @@ public final class AfwBoneTextureOverrides {
     private static volatile Map<Identifier, List<Identifier>> EMISSIVE_TEXTURES_BY_MODEL = Map.of();
     private static volatile Map<Identifier, Map<String, ModelLocator>> LOCATORS_BY_MODEL = Map.of();
     private static volatile Map<Identifier, RenderSettings> RENDER_SETTINGS_BY_MODEL = Map.of();
-    private static final Identifier RELOADER_ID = Identifier.of((String)"animationframework", (String)"afw_bone_textures");
+    private static final Identifier RELOADER_ID = new Identifier((String)"animationframework", (String)"afw_bone_textures");
 
     private AfwBoneTextureOverrides() {
     }
 
     public static void registerReloadListener() {
-        ResourceLoader.get((ResourceType)ResourceType.CLIENT_RESOURCES).registerReloader(RELOADER_ID, (ResourceReloader)new Reloader());
+        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new Reloader());
     }
 
     public static Map<String, Identifier> getBoneTextures(Identifier modelId) {
         if (modelId == null) {
             return null;
         }
-        return BONE_TEXTURES_BY_MODEL.get(modelId);
+        return BONE_TEXTURES_BY_MODEL.get(AfwBoneTextureOverrides.logicalModelId(modelId));
     }
 
     public static List<Identifier> getEmissiveTextures(Identifier modelId) {
         if (modelId == null) {
             return null;
         }
-        return EMISSIVE_TEXTURES_BY_MODEL.get(modelId);
+        return EMISSIVE_TEXTURES_BY_MODEL.get(AfwBoneTextureOverrides.logicalModelId(modelId));
     }
 
     public static Map<String, ModelLocator> getLocators(Identifier modelId) {
         if (modelId == null) {
             return null;
         }
-        return LOCATORS_BY_MODEL.get(modelId);
+        return LOCATORS_BY_MODEL.get(AfwBoneTextureOverrides.logicalModelId(modelId));
     }
 
     public static boolean isTranslucent(Identifier modelId) {
         if (modelId == null) {
             return false;
         }
-        RenderSettings settings = RENDER_SETTINGS_BY_MODEL.get(modelId);
+        RenderSettings settings = RENDER_SETTINGS_BY_MODEL.get(AfwBoneTextureOverrides.logicalModelId(modelId));
         return settings != null && settings.translucent();
     }
 
     private static void reload(ResourceManager manager) {
-        Map resources = manager.findResources("geckolib/models", id -> id.getPath().endsWith(".geo.json"));
-        ArrayList entries = new ArrayList(resources.entrySet());
-        entries.sort(Comparator.comparing(e -> ((Identifier)e.getKey()).toString()));
+        LinkedHashMap<Identifier, Resource> resources = new LinkedHashMap<>();
+        resources.putAll(manager.findResources(
+                "geckolib/models", id -> id.getPath().endsWith(".geo.json")));
+        resources.putAll(manager.findResources(
+                "geo", id -> id.getPath().endsWith(".geo.json")));
+        ArrayList<Map.Entry<Identifier, Resource>> entries = new ArrayList<>(resources.entrySet());
+        entries.sort(Comparator.comparing(e -> e.getKey().toString()));
         LinkedHashMap<Identifier, Map<String, Identifier>> loaded = new LinkedHashMap<Identifier, Map<String, Identifier>>();
         LinkedHashMap<Identifier, List<Identifier>> loadedEmissive = new LinkedHashMap<Identifier, List<Identifier>>();
         LinkedHashMap<Identifier, Map<String, ModelLocator>> loadedLocators = new LinkedHashMap<Identifier, Map<String, ModelLocator>>();
         LinkedHashMap<Identifier, RenderSettings> loadedRenderSettings = new LinkedHashMap<Identifier, RenderSettings>();
-        for (Map.Entry entry : entries) {
-            Identifier fileId = (Identifier)entry.getKey();
+        for (Map.Entry<Identifier, Resource> entry : entries) {
+            Identifier fileId = entry.getKey();
             Identifier modelId = AfwBoneTextureOverrides.modelIdFromGeoPath(fileId);
             if (modelId == null) continue;
-            try (InputStreamReader reader = new InputStreamReader(((Resource)entry.getValue()).getInputStream(), StandardCharsets.UTF_8);){
+            try (InputStreamReader reader = new InputStreamReader(entry.getValue().getInputStream(), StandardCharsets.UTF_8);){
                 RenderSettings renderSettings;
                 Map<String, ModelLocator> locators;
                 List<Identifier> emissiveTextures;
@@ -261,13 +266,25 @@ public final class AfwBoneTextureOverrides {
 
     private static Identifier modelIdFromGeoPath(Identifier fileId) {
         String path = fileId.getPath();
-        String prefix = "geckolib/models/";
         String suffix = ".geo.json";
-        if (!path.startsWith(prefix) || !path.endsWith(suffix)) {
+        String prefix;
+        if (path.startsWith("geckolib/models/")) {
+            prefix = "geckolib/models/";
+        } else if (path.startsWith("geo/")) {
+            prefix = "geo/";
+        } else {
+            return null;
+        }
+        if (!path.endsWith(suffix)) {
             return null;
         }
         String modelPath = path.substring(prefix.length(), path.length() - suffix.length());
-        return Identifier.of((String)fileId.getNamespace(), (String)modelPath);
+        return new Identifier((String)fileId.getNamespace(), (String)modelPath);
+    }
+
+    private static Identifier logicalModelId(Identifier modelId) {
+        Identifier logical = AfwBoneTextureOverrides.modelIdFromGeoPath(modelId);
+        return logical != null ? logical : modelId;
     }
 
     private static void setupWarn(String template, Object ... args) {
@@ -281,7 +298,11 @@ public final class AfwBoneTextureOverrides {
     }
 
     public static final class Reloader
-    implements SynchronousResourceReloader {
+    implements SynchronousResourceReloader, IdentifiableResourceReloadListener {
+        public Identifier getFabricId() {
+            return RELOADER_ID;
+        }
+
         public void reload(ResourceManager manager) {
             AfwBoneTextureOverrides.reload(manager);
         }
