@@ -1,4 +1,4 @@
-name: Patch AFW NeoForge migration
+name: Reset AFW 1.21.1 baseline and build
 
 on:
   push:
@@ -20,42 +20,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply current AFW NeoForge fixes
+      - name: Restore 1.21.1-compatible AFW source baseline
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
+          git checkout a8167b91034d3b316b3eed76446267f4fd139c4c -- animationdirector/src/main/java
+          cat > animationdirector/src/main/java/com/afwid/network/AfwPacket.java <<'JAVA'
+          package com.afwid.network;
 
-          p = Path('animationdirector/src/main/java/com/afwid/client/compat/wildfire/AfwWildfireGenderCompat.java')
-          s = p.read_text()
-          s = s.replace('import net.fabricmc.loader.api.FabricLoader;', 'import net.neoforged.fml.ModList;')
-          s = s.replace('if (!FabricLoader.getInstance().isModLoaded(MOD_ID)) {', 'if (!ModList.get().isLoaded(MOD_ID)) {')
-          replacement = '''        EntityPose pose = renderState.pose;
-                  boolean sneaking = false;
-                  if (renderState instanceof BipedEntityRenderState biped) {
-                      sneaking = biped.isInSneakingPose;
-                  }
-                  RenderPoseSnapshot snapshot = new RenderPoseSnapshot(pose, sneaking);
-                  renderState.pose = EntityPose.STANDING;
-                  if (renderState instanceof BipedEntityRenderState biped) {
-                      biped.isInSneakingPose = false;
-                  }
-                  return snapshot;'''
-          pattern = r'        v0 = renderState\.pose;.*?        return snapshot;'
-          s, n = re.subn(pattern, replacement, s, count=1, flags=re.S)
-          if n != 1:
-              raise SystemExit(f'neutralizeRenderPose decompiler block matches={n}')
-          p.write_text(s)
-          PY
+          import net.minecraft.network.packet.CustomPayload;
 
-      - name: Commit source fixes
+          /** Legacy compatibility marker while the old Fabric byte-buffer layer is removed. */
+          @Deprecated(forRemoval = true)
+          public interface AfwPacket extends CustomPayload {
+          }
+          JAVA
+
+      - name: Commit corrected baseline
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add animationdirector/src/main/java/com/afwid/client/compat/wildfire/AfwWildfireGenderCompat.java
+          git add animationdirector/src/main/java
           if ! git diff --cached --quiet; then
-            git commit -m 'port: fix AFW Wildfire 1.21 source and NeoForge mod lookup'
+            git commit -m 'port: restore GeckoLib 4 compatible AFW baseline for 1.21.1'
             git push origin HEAD:port/1.21.1-neoforge
           fi
 
@@ -68,7 +54,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      - name: Build patched branch
+      - name: Build corrected branch
         shell: bash
         run: |
           set -o pipefail
@@ -79,7 +65,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: patched-afw-build-log
+          name: corrected-afw-build-log
           path: build.log
           if-no-files-found: warn
           retention-days: 3
@@ -88,7 +74,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: NeedsOfNature-1.21.1-NeoForge-patched
+          name: NeedsOfNature-1.21.1-NeoForge-corrected
           path: |
             animationdirector/build/libs/*.jar
             needsofnature/build/libs/*.jar
