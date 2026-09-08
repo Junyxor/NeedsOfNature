@@ -1,0 +1,32 @@
+name: Restore Animation Director 1.21 baseline
+
+on:
+  push:
+    branches:
+      - port/1.21.1-neoforge
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    if: github.event.head_commit.message == 'port: restore 1.21 Animation Director baseline'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Restore mapped 1.21 Java sources
+        run: |
+          rsync -a mapped-src/animationdirector/ animationdirector/src/main/java/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add animationdirector/src/main/java
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+            exit 0
+          fi
+          git commit -m 'port: restore Animation Director 1.21 Java baseline'
+          git push origin HEAD:port/1.21.1-neoforge
