@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - port/1.21.1-neoforge
+    paths:
+      - .github/workflows/restore-animationdirector-1.21.yml
 
 permissions:
   contents: write
 
 jobs:
   restore:
-    if: github.event.head_commit.message == 'port: restore 1.21 Animation Director baseline'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
