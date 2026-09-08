@@ -25,43 +25,27 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           p = Path('animationdirector/src/main/java/com/afwid/client/compat/wildfire/AfwWildfireGenderCompat.java')
           s = p.read_text()
           s = s.replace('import net.fabricmc.loader.api.FabricLoader;', 'import net.neoforged.fml.ModList;')
           s = s.replace('if (!FabricLoader.getInstance().isModLoaded(MOD_ID)) {', 'if (!ModList.get().isLoaded(MOD_ID)) {')
-          old = '''        v0 = renderState.pose;
-          if (!(renderState instanceof BipedEntityRenderState)) ** GOTO lbl-1000
-          biped = (BipedEntityRenderState)renderState;
-          if (biped.isInSneakingPose) {
-              v1 = true;
-          } else lbl-1000:
-          // 2 sources
-
-          {
-              v1 = false;
-          }
-          snapshot = new RenderPoseSnapshot(v0, v1);
-          renderState.pose = EntityPose.STANDING;
-          if (renderState instanceof BipedEntityRenderState) {
-              biped = (BipedEntityRenderState)renderState;
-              biped.isInSneakingPose = false;
-          }
-          return snapshot;'''
-          new = '''        EntityPose pose = renderState.pose;
-          boolean sneaking = false;
-          if (renderState instanceof BipedEntityRenderState biped) {
-              sneaking = biped.isInSneakingPose;
-          }
-          RenderPoseSnapshot snapshot = new RenderPoseSnapshot(pose, sneaking);
-          renderState.pose = EntityPose.STANDING;
-          if (renderState instanceof BipedEntityRenderState biped) {
-              biped.isInSneakingPose = false;
-          }
-          return snapshot;'''
-          if old not in s:
-              raise SystemExit('neutralizeRenderPose decompiler block not found')
-          s = s.replace(old, new)
+          replacement = '''        EntityPose pose = renderState.pose;
+                  boolean sneaking = false;
+                  if (renderState instanceof BipedEntityRenderState biped) {
+                      sneaking = biped.isInSneakingPose;
+                  }
+                  RenderPoseSnapshot snapshot = new RenderPoseSnapshot(pose, sneaking);
+                  renderState.pose = EntityPose.STANDING;
+                  if (renderState instanceof BipedEntityRenderState biped) {
+                      biped.isInSneakingPose = false;
+                  }
+                  return snapshot;'''
+          pattern = r'        v0 = renderState\.pose;.*?        return snapshot;'
+          s, n = re.subn(pattern, replacement, s, count=1, flags=re.S)
+          if n != 1:
+              raise SystemExit(f'neutralizeRenderPose decompiler block matches={n}')
           p.write_text(s)
           PY
 
