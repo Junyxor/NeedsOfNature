@@ -1,18 +1,12 @@
 package com.afwid.network;
 
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.util.Identifier;
+import net.minecraft.network.packet.CustomPayload;
 
-/** Common 1.20.1 packet contract used by both networking directions. */
-public interface AfwPacket {
-    Identifier id();
-
-    void write(PacketByteBuf buf);
-
-    default PacketByteBuf toBuffer() {
-        PacketByteBuf buf = PacketByteBufs.create();
-        write(buf);
-        return buf;
-    }
+/**
+ * Legacy compatibility marker retained for source compatibility while the
+ * 1.20.1 byte-buffer networking layer is removed. New packets are ordinary
+ * Minecraft 1.21 CustomPayload implementations.
+ */
+@Deprecated(forRemoval = true)
+public interface AfwPacket extends CustomPayload {
 }
