@@ -15,12 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Package source snapshot
+        with:
+          fetch-depth: 0
+      - name: Package source snapshots
         run: |
           tar -czf port-source.tar.gz animationdirector needsofnature build.gradle gradle.properties settings.gradle
-      - name: Upload snapshot
+          git archive --format=tar.gz -o main-afw-source.tar.gz origin/main animationdirector/src/main/java animationdirector/src/main/resources
+      - name: Upload snapshots
         uses: actions/upload-artifact@v4
         with:
           name: port-source-snapshot
-          path: port-source.tar.gz
+          path: |
+            port-source.tar.gz
+            main-afw-source.tar.gz
           retention-days: 1
