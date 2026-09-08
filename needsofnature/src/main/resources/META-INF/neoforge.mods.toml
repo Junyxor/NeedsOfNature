@@ -1,0 +1,36 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="All Rights Reserved"
+
+[[mods]]
+modId="needsofnature"
+version="${version}"
+displayName="NeedsOfNature"
+authors="L1Z0"
+description='''
+Magic mod using Animation Director to play animations.
+'''
+
+[[mixins]]
+config="needsofnature.mixins.json"
+
+[[dependencies.needsofnature]]
+modId="neoforge"
+type="required"
+versionRange="[${neoforge_version},)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.needsofnature]]
+modId="minecraft"
+type="required"
+versionRange="[${minecraft_version}]"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.needsofnature]]
+modId="animationframework"
+type="required"
+versionRange="[1.3.1,)"
+ordering="AFTER"
+side="BOTH"
